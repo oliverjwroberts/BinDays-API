@@ -15,44 +15,12 @@ set -o pipefail
 
 CONTEXT=""
 
-# Collect test output if available
-if [ -f test_output.txt ]; then
-  CONTEXT+="## Test output (last 100 lines)
-$(tail -100 test_output.txt)
+# Collect last lines from the Codex implement step log
+if [ -f .agent/codex-implement.log ]; then
+  CONTEXT+="## Codex implement log (last 100 lines)
+$(tail -100 .agent/codex-implement.log)
 
 "
-fi
-
-# Collect git status to show what files were created/modified
-CONTEXT+="## Git status
-$(git status --short)
-
-"
-
-# Collect build errors if any
-BUILD_OUTPUT=$(dotnet build --no-restore 2>&1 | tail -50) || true
-if echo "$BUILD_OUTPUT" | grep -qi "error"; then
-  CONTEXT+="## Build output (last 50 lines)
-$BUILD_OUTPUT
-
-"
-fi
-
-# Check if collector/test files exist
-COLLECTORS_DIR="BinDays.Api.Collectors/Collectors/Councils"
-TESTS_DIR="BinDays.Api.IntegrationTests/Collectors/Councils"
-
-if [ -n "$COLLECTOR_NAME" ]; then
-  if [ ! -f "$COLLECTORS_DIR/${COLLECTOR_NAME}.cs" ]; then
-    CONTEXT+="## Missing files
-Collector file not found: $COLLECTORS_DIR/${COLLECTOR_NAME}.cs
-"
-  fi
-  if [ ! -f "$TESTS_DIR/${COLLECTOR_NAME}Tests.cs" ]; then
-    CONTEXT+="## Missing files
-Test file not found: $TESTS_DIR/${COLLECTOR_NAME}Tests.cs
-"
-  fi
 fi
 
 PROMPT="You are analysing a failed GitHub Actions run that tried to automatically implement a BinDays collector for ${COLLECTOR_NAME:-an unknown council}.

@@ -21,6 +21,10 @@ set -e
 
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE=".agent/codex-implement.log"
+
+# Tee all output to a log file for failure summarisation
+exec > >(tee "$LOG_FILE") 2>&1
 
 RESUME_PROMPT="You stopped before completing all steps. This is a non-interactive CI/CD task with no user present. Please continue the implementation of ${COLLECTOR_NAME} until completion."
 
