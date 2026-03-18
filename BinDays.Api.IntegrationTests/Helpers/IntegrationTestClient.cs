@@ -16,8 +16,7 @@ using Xunit.Abstractions;
 internal sealed class IntegrationTestClient
 {
 	private readonly HttpClient _apiClient;
-	private readonly HttpClient _httpClientWithRedirects;
-	private readonly HttpClient _httpClientWithoutRedirects;
+	private readonly HttpClient _externalClient;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="IntegrationTestClient"/> class.
@@ -33,23 +32,15 @@ internal sealed class IntegrationTestClient
 			StringComparison.OrdinalIgnoreCase
 		);
 
-		// Client that automatically follows redirects
-		var handlerWithRedirects = new HttpClientHandler
-		{
-			UseCookies = false,
-			CookieContainer = new CookieContainer(),
-			AllowAutoRedirect = true,
-		};
-		_httpClientWithRedirects = CreateExternalClient(handlerWithRedirects, enableHttpLogging, outputHelper);
-
-		// Client that does NOT automatically follow redirects
-		var handlerWithoutRedirects = new HttpClientHandler
+		// Single client that never auto-follows redirects; redirects are handled manually
+		// to match Dio client behaviour (redirect loop detection).
+		var handler = new HttpClientHandler
 		{
 			UseCookies = false,
 			CookieContainer = new CookieContainer(),
 			AllowAutoRedirect = false,
 		};
-		_httpClientWithoutRedirects = CreateExternalClient(handlerWithoutRedirects, enableHttpLogging, outputHelper);
+		_externalClient = CreateExternalClient(handler, enableHttpLogging, outputHelper);
 	}
 
 	/// <summary>
@@ -134,66 +125,108 @@ internal sealed class IntegrationTestClient
 
 	/// <summary>
 	/// Sends a single client-side HTTP request as defined by the API.
+	/// Manually follows redirects when enabled, with loop detection matching Dio client behaviour.
 	/// </summary>
 	private async Task<ClientSideResponse> SendClientSideRequestAsync(ClientSideRequest request)
 	{
-		using var httpRequest = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
-		var headersToSend = new Dictionary<string, string>(request.Headers, StringComparer.OrdinalIgnoreCase);
+		var currentUrl = request.Url;
+		var currentMethod = request.Method;
+		var currentBody = request.Body;
+		var currentHeaders = new Dictionary<string, string>(request.Headers, StringComparer.OrdinalIgnoreCase);
+		var visitedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { currentUrl };
 
-		if (!string.IsNullOrEmpty(request.Body))
+		while (true)
 		{
-			var mediaTypeOnly = "application/octet-stream";
-			var requestEncoding = Encoding.UTF8;
+			using var httpRequest = new HttpRequestMessage(new HttpMethod(currentMethod), currentUrl);
+			var headersToSend = new Dictionary<string, string>(currentHeaders, StringComparer.OrdinalIgnoreCase);
 
-			var contentTypeKey = headersToSend.Keys.FirstOrDefault(k => k.Equals("content-type", StringComparison.OrdinalIgnoreCase));
-
-			if (contentTypeKey != null)
+			if (!string.IsNullOrEmpty(currentBody))
 			{
-				var fullContentType = headersToSend[contentTypeKey];
-				headersToSend.Remove(contentTypeKey);
+				var mediaTypeOnly = "application/octet-stream";
+				var requestEncoding = Encoding.UTF8;
 
-				var parts = fullContentType.Split(';');
-				mediaTypeOnly = parts[0].Trim();
+				var contentTypeKey = headersToSend.Keys.FirstOrDefault(k => k.Equals("content-type", StringComparison.OrdinalIgnoreCase));
+
+				if (contentTypeKey != null)
+				{
+					var fullContentType = headersToSend[contentTypeKey];
+					headersToSend.Remove(contentTypeKey);
+
+					var parts = fullContentType.Split(';');
+					mediaTypeOnly = parts[0].Trim();
+				}
+				else if (currentMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) && LooksLikeJson(currentBody))
+				{
+					mediaTypeOnly = "application/json";
+				}
+
+				httpRequest.Content = new StringContent(currentBody, requestEncoding, mediaTypeOnly);
 			}
-			else if (request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase) && LooksLikeJson(request.Body))
+
+			foreach (var header in headersToSend)
 			{
-				mediaTypeOnly = "application/json";
+				if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
+				{
+					httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
+				}
 			}
 
-			httpRequest.Content = new StringContent(request.Body, requestEncoding, mediaTypeOnly);
-		}
+			using var httpResponse = await _externalClient.SendAsync(httpRequest, HttpCompletionOption.ResponseContentRead);
 
-		foreach (var header in headersToSend)
-		{
-			if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
+			// If redirects are enabled and we got a redirect status, follow it manually
+			if (request.Options.FollowRedirects && IsRedirectStatusCode(httpResponse.StatusCode) && httpResponse.Headers.Location != null)
 			{
-				httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
+				var redirectUrl = httpResponse.Headers.Location.IsAbsoluteUri
+					? httpResponse.Headers.Location.AbsoluteUri
+					: new Uri(new Uri(currentUrl), httpResponse.Headers.Location).AbsoluteUri;
+
+				if (!visitedUrls.Add(redirectUrl))
+				{
+					throw new HttpRequestException($"Redirect loop detected: {redirectUrl}");
+				}
+
+				// Redirects switch to GET and drop the body (except 307/308)
+				if (httpResponse.StatusCode != HttpStatusCode.TemporaryRedirect &&
+					httpResponse.StatusCode != (HttpStatusCode)308)
+				{
+					currentMethod = "GET";
+					currentBody = null;
+				}
+
+				currentUrl = redirectUrl;
+				continue;
 			}
+
+			var responseContent = await httpResponse.Content.ReadAsStringAsync();
+
+			var responseHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var header in httpResponse.Headers.Concat(httpResponse.Content.Headers))
+			{
+				// Convert headers to lowercase to match BinDays-Client library
+				responseHeaders[header.Key.ToLower()] = string.Join(",", header.Value);
+			}
+
+			return new ClientSideResponse
+			{
+				RequestId = request.RequestId,
+				StatusCode = (int)httpResponse.StatusCode,
+				Headers = responseHeaders,
+				Content = responseContent,
+				ReasonPhrase = httpResponse.ReasonPhrase ?? string.Empty,
+				Options = request.Options,
+			};
 		}
-
-		// Choose the appropriate HttpClient based on the FollowRedirects option
-		var httpClient = request.Options.FollowRedirects ? _httpClientWithRedirects : _httpClientWithoutRedirects;
-
-		using var httpResponse = await httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseContentRead);
-		var responseContent = await httpResponse.Content.ReadAsStringAsync();
-
-		var responseHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var header in httpResponse.Headers.Concat(httpResponse.Content.Headers))
-		{
-			// Convert headers to lowercase to match BinDays-Client library
-			responseHeaders[header.Key.ToLower()] = string.Join(",", header.Value);
-		}
-
-		return new ClientSideResponse
-		{
-			RequestId = request.RequestId,
-			StatusCode = (int)httpResponse.StatusCode,
-			Headers = responseHeaders,
-			Content = responseContent,
-			ReasonPhrase = httpResponse.ReasonPhrase ?? string.Empty,
-			Options = request.Options,
-		};
 	}
+
+	/// <summary>
+	/// Returns true for HTTP status codes that indicate a redirect.
+	/// </summary>
+	private static bool IsRedirectStatusCode(HttpStatusCode statusCode) =>
+		statusCode is HttpStatusCode.Moved
+			or HttpStatusCode.Found
+			or HttpStatusCode.SeeOther
+			or HttpStatusCode.TemporaryRedirect
+			or (HttpStatusCode)308;
 
 	/// <summary>
 	/// Basic check to see if a string looks like a JSON object or array.
