@@ -53,9 +53,24 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 	];
 
 	/// <summary>
+	/// The base URL for the waste collection site.
+	/// </summary>
+	private const string BaseUrl = "https://waste.barnsley.gov.uk/ViewCollection";
+
+	/// <summary>
+	/// The URL for the initial session setup page.
+	/// </summary>
+	private const string BeforeYouBeginUrl = $"{BaseUrl}/BeforeYouBegin";
+
+	/// <summary>
 	/// The URL for the address selection page.
 	/// </summary>
-	private const string SelectAddressUrl = "https://waste.barnsley.gov.uk/ViewCollection/SelectAddress";
+	private const string SelectAddressUrl = $"{BaseUrl}/SelectAddress";
+
+	/// <summary>
+	/// The URL for the collections results page.
+	/// </summary>
+	private const string CollectionsUrl = $"{BaseUrl}/Collections";
 
 	/// <summary>
 	/// Regex for the RequestVerificationToken.
@@ -90,66 +105,112 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting the form token
+		// Step 1: GET BeforeYouBegin to establish session cookie
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = new ClientSideRequest
+			return new GetAddressesResponse
 			{
-				RequestId = 1,
-				Url = SelectAddressUrl,
-				Method = "GET",
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = BeforeYouBeginUrl,
+					Method = "GET",
+					Options = new ClientSideOptions
+					{
+						FollowRedirects = false,
+					},
+				},
 			};
-
-			var getAddressesResponse = new GetAddressesResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getAddressesResponse;
 		}
-		// Prepare client-side request for getting addresses
+		// Step 2: GET SelectAddress with session cookie to get form + token
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
 
-			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
-
-			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
+			return new GetAddressesResponse
 			{
-				{ "personInfo.person1.HouseNumberOrName", string.Empty },
-				{ "personInfo.person1.Postcode", postcode },
-				{ "person1_FindAddress", "Find address" },
-				{ "__RequestVerificationToken", token },
-			});
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 2,
-				Url = SelectAddressUrl,
-				Method = "POST",
-				Headers = new()
+				NextClientSideRequest = new ClientSideRequest
 				{
-					{ "user-agent", Constants.UserAgent },
-					{ "content-type", Constants.FormUrlEncoded },
-					{ "cookie", requestCookies },
+					RequestId = 2,
+					Url = SelectAddressUrl,
+					Method = "GET",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "cookie", requestCookies },
+					},
+					Options = new ClientSideOptions
+					{
+						Metadata =
+						{
+							{ "cookie", requestCookies },
+						},
+					},
 				},
-				Body = requestBody,
 			};
-
-			var getAddressesResponse = new GetAddressesResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getAddressesResponse;
 		}
-		// Process addresses from response
+		// Step 3: POST address search form (PRG pattern, no redirect follow)
 		else if (clientSideResponse.RequestId == 2)
+		{
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
+
+			return new GetAddressesResponse
+			{
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 3,
+					Url = SelectAddressUrl,
+					Method = "POST",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "content-type", Constants.FormUrlEncoded },
+						{ "cookie", requestCookies },
+					},
+					Body = ProcessingUtilities.ConvertDictionaryToFormData(new()
+					{
+						{ "personInfo.person1.HouseNumberOrName", string.Empty },
+						{ "personInfo.person1.Postcode", postcode },
+						{ "person1_FindAddress", "Find address" },
+						{ "__RequestVerificationToken", token },
+					}),
+					Options = new ClientSideOptions
+					{
+						FollowRedirects = false,
+						Metadata =
+						{
+							{ "cookie", requestCookies },
+						},
+					},
+				},
+			};
+		}
+		// Step 4: Follow POST redirect to get addresses page
+		else if (clientSideResponse.RequestId == 3)
+		{
+			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
+
+			return new GetAddressesResponse
+			{
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 4,
+					Url = SelectAddressUrl,
+					Method = "GET",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "cookie", requestCookies },
+					},
+				},
+			};
+		}
+		// Step 5: Parse addresses from the response
+		else if (clientSideResponse.RequestId == 4)
 		{
 			var rawAddresses = AddressRegex().Matches(clientSideResponse.Content)!;
 
-			// Iterate through each address, and create a new address object
 			var addresses = new List<Address>();
 			foreach (Match rawAddress in rawAddresses)
 			{
@@ -160,22 +221,18 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 					continue;
 				}
 
-				var address = new Address
+				addresses.Add(new Address
 				{
 					Property = rawAddress.Groups["address"].Value.Trim(),
 					Postcode = postcode,
 					Uid = uid,
-				};
-
-				addresses.Add(address);
+				});
 			}
 
-			var getAddressesResponse = new GetAddressesResponse
+			return new GetAddressesResponse
 			{
 				Addresses = [.. addresses],
 			};
-
-			return getAddressesResponse;
 		}
 
 		throw new InvalidOperationException("Invalid client-side request.");
@@ -184,106 +241,175 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting the form token
+		// Step 1: GET BeforeYouBegin to establish session cookie
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = new ClientSideRequest
+			return new GetBinDaysResponse
 			{
-				RequestId = 1,
-				Url = SelectAddressUrl,
-				Method = "GET",
-			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
-		}
-		// Prepare client-side request for finding addresses
-		else if (clientSideResponse.RequestId == 1)
-		{
-			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
-
-			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
-
-			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
-			{
-				{ "personInfo.person1.HouseNumberOrName", string.Empty },
-				{ "personInfo.person1.Postcode", address.Postcode! },
-				{ "person1_FindAddress", "Find address" },
-				{ "__RequestVerificationToken", token },
-			});
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 2,
-				Url = SelectAddressUrl,
-				Method = "POST",
-				Headers = new()
+				NextClientSideRequest = new ClientSideRequest
 				{
-					{ "user-agent", Constants.UserAgent },
-					{ "content-type", Constants.FormUrlEncoded },
-					{ "cookie", requestCookies },
-				},
-				Body = requestBody,
-				Options = new ClientSideOptions
-				{
-					Metadata =
+					RequestId = 1,
+					Url = BeforeYouBeginUrl,
+					Method = "GET",
+					Options = new ClientSideOptions
 					{
-						{ "cookie", requestCookies },
+						FollowRedirects = false,
 					},
 				},
 			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
 		}
-		// Prepare client-side request for selecting the address
+		// Step 2: GET SelectAddress with session cookie to get form + token
+		else if (clientSideResponse.RequestId == 1)
+		{
+			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
+
+			return new GetBinDaysResponse
+			{
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 2,
+					Url = SelectAddressUrl,
+					Method = "GET",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "cookie", requestCookies },
+					},
+					Options = new ClientSideOptions
+					{
+						Metadata =
+						{
+							{ "cookie", requestCookies },
+						},
+					},
+				},
+			};
+		}
+		// Step 3: POST address search form (PRG pattern, no redirect follow)
 		else if (clientSideResponse.RequestId == 2)
+		{
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
+
+			return new GetBinDaysResponse
+			{
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 3,
+					Url = SelectAddressUrl,
+					Method = "POST",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "content-type", Constants.FormUrlEncoded },
+						{ "cookie", requestCookies },
+					},
+					Body = ProcessingUtilities.ConvertDictionaryToFormData(new()
+					{
+						{ "personInfo.person1.HouseNumberOrName", string.Empty },
+						{ "personInfo.person1.Postcode", address.Postcode! },
+						{ "person1_FindAddress", "Find address" },
+						{ "__RequestVerificationToken", token },
+					}),
+					Options = new ClientSideOptions
+					{
+						FollowRedirects = false,
+						Metadata =
+						{
+							{ "cookie", requestCookies },
+						},
+					},
+				},
+			};
+		}
+		// Step 4: Follow POST redirect to get addresses page with token
+		else if (clientSideResponse.RequestId == 3)
+		{
+			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
+
+			return new GetBinDaysResponse
+			{
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 4,
+					Url = SelectAddressUrl,
+					Method = "GET",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "cookie", requestCookies },
+					},
+					Options = new ClientSideOptions
+					{
+						Metadata =
+						{
+							{ "cookie", requestCookies },
+						},
+					},
+				},
+			};
+		}
+		// Step 5: POST to select the address (PRG pattern, no redirect follow)
+		else if (clientSideResponse.RequestId == 4)
 		{
 			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
 			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
 			var postcodeValue = PostcodeRegex().Match(clientSideResponse.Content).Groups["postcode"].Value;
 
-			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
+			return new GetBinDaysResponse
 			{
-				{ "personInfo.person1.HouseNumberOrName", string.Empty },
-				{ "personInfo.person1.Postcode", postcodeValue },
-				{ "personInfo.person1.UPRN", address.Uid! },
-				{ "person1_SelectAddress", "Select address" },
-				{ "__RequestVerificationToken", token },
-			});
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 3,
-				Url = SelectAddressUrl,
-				Method = "POST",
-				Headers = new()
+				NextClientSideRequest = new ClientSideRequest
 				{
-					{ "user-agent", Constants.UserAgent },
-					{ "content-type", Constants.FormUrlEncoded },
-					{ "cookie", requestCookies },
+					RequestId = 5,
+					Url = SelectAddressUrl,
+					Method = "POST",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "content-type", Constants.FormUrlEncoded },
+						{ "cookie", requestCookies },
+					},
+					Body = ProcessingUtilities.ConvertDictionaryToFormData(new()
+					{
+						{ "personInfo.person1.HouseNumberOrName", string.Empty },
+						{ "personInfo.person1.Postcode", postcodeValue },
+						{ "personInfo.person1.UPRN", address.Uid! },
+						{ "person1_SelectAddress", "Select address" },
+						{ "__RequestVerificationToken", token },
+					}),
+					Options = new ClientSideOptions
+					{
+						FollowRedirects = false,
+						Metadata =
+						{
+							{ "cookie", requestCookies },
+						},
+					},
 				},
-				Body = requestBody,
 			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
 		}
-		// Process bin days from response
-		else if (clientSideResponse.RequestId == 3)
+		// Step 6: Follow POST redirect to the collections page
+		else if (clientSideResponse.RequestId == 5)
+		{
+			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
+
+			return new GetBinDaysResponse
+			{
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 6,
+					Url = CollectionsUrl,
+					Method = "GET",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "cookie", requestCookies },
+					},
+				},
+			};
+		}
+		// Step 7: Parse bin days from the collections page
+		else if (clientSideResponse.RequestId == 6)
 		{
 			var binDays = new List<BinDay>();
 
@@ -291,7 +417,6 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 			if (nextCollectionMatch.Success)
 			{
 				var date = ParseCollectionDate(nextCollectionMatch.Groups["date"].Value);
-
 				var bins = ProcessingUtilities.GetMatchingBins(_binTypes, nextCollectionMatch.Groups["bins"].Value.Trim());
 
 				binDays.Add(new BinDay
@@ -304,11 +429,9 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 
 			var binRows = BinRowRegex().Matches(clientSideResponse.Content)!;
 
-			// Iterate through each bin day row, and create a new bin day object
 			foreach (Match binRow in binRows)
 			{
 				var date = ParseCollectionDate(binRow.Groups["date"].Value);
-
 				var bins = ProcessingUtilities.GetMatchingBins(_binTypes, binRow.Groups["bins"].Value.Trim());
 
 				binDays.Add(new BinDay
@@ -319,12 +442,10 @@ internal sealed partial class BarnsleyMetropolitanBoroughCouncil : GovUkCollecto
 				});
 			}
 
-			var getBinDaysResponse = new GetBinDaysResponse
+			return new GetBinDaysResponse
 			{
 				BinDays = ProcessingUtilities.ProcessBinDays(binDays),
 			};
-
-			return getBinDaysResponse;
 		}
 
 		throw new InvalidOperationException("Invalid client-side request.");
