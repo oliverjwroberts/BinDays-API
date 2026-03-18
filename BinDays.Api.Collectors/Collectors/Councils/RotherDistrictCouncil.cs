@@ -50,19 +50,19 @@ internal sealed partial class RotherDistrictCouncil : GovUkCollectorBase, IColle
 	/// <summary>
 	/// Regex to extract addresses from the response HTML.
 	/// </summary>
-	[GeneratedRegex("<option value=\"(?<uid>[^\"]+)\">\\s*(?<address>[^<]+)<\\/option>", RegexOptions.Singleline)]
+	[GeneratedRegex(@"<option value=""(?<uid>[^""]+)"">\s*(?<address>[^<]+)</option>", RegexOptions.Singleline)]
 	private static partial Regex AddressRegex();
 
 	/// <summary>
 	/// Regex to extract bin days from the response HTML.
 	/// </summary>
-	[GeneratedRegex("<h3[^>]*>(?<service>[^:<]+):<\\/h3>\\s*<span[^>]*>(?<date>[^<]+)<\\/span>", RegexOptions.Singleline)]
+	[GeneratedRegex(@"<h3[^>]*>(?<service>[^:<]+):</h3>\s*<span[^>]*>(?<date>[^<]+)</span>", RegexOptions.Singleline)]
 	private static partial Regex BinDaysRegex();
 
 	/// <summary>
 	/// Regex to remove ordinal suffixes from dates.
 	/// </summary>
-	[GeneratedRegex("(?<=\\d)(st|nd|rd|th)", RegexOptions.IgnoreCase)]
+	[GeneratedRegex(@"(?<=\d)(st|nd|rd|th)", RegexOptions.IgnoreCase)]
 	private static partial Regex OrdinalSuffixRegex();
 
 	/// <inheritdoc/>
@@ -104,7 +104,7 @@ internal sealed partial class RotherDistrictCouncil : GovUkCollectorBase, IColle
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var data = jsonDoc.RootElement.GetProperty("data").GetString()!;
 
-			var rawAddresses = AddressRegex().Matches(data)!;
+			var rawAddresses = AddressRegex().Matches(data);
 
 			// Iterate through each address, and create a new address object
 			var addresses = new List<Address>();
@@ -178,13 +178,13 @@ internal sealed partial class RotherDistrictCouncil : GovUkCollectorBase, IColle
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var data = jsonDoc.RootElement.GetProperty("data").GetString()!;
 
-			var rawBinDays = BinDaysRegex().Matches(data)!;
+			var rawBinDays = BinDaysRegex().Matches(data);
 
 			// Iterate through each bin day, and create a new bin day object
 			var binDays = new List<BinDay>();
 			foreach (Match rawBinDay in rawBinDays)
 			{
-				var service = rawBinDay.Groups["service"].Value.Trim().TrimEnd(':');
+				var service = rawBinDay.Groups["service"].Value.Trim();
 				var rawDate = rawBinDay.Groups["date"].Value.Trim();
 
 				var dateString = OrdinalSuffixRegex().Replace(rawDate, string.Empty).Trim();
