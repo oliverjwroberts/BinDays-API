@@ -37,6 +37,6 @@
 
   <Target Name="CompileDartCli" BeforeTargets="Build" Condition="!Exists('$(DartCliOutput)')">
     <Exec Command="dart pub get" WorkingDirectory="$(DartClientDir)" />
-    <Exec Command="dart compile exe bin\send_request.dart -o bin\send_request.exe" WorkingDirectory="$(DartClientDir)" />
+    <Exec Command="dart compile exe bin/send_request.dart -o bin/send_request.exe" WorkingDirectory="$(DartClientDir)" />
   </Target>
 </Project>
