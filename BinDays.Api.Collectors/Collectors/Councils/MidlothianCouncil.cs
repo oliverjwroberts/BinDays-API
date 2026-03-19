@@ -145,9 +145,9 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 			var addresses = new List<Address>();
 			foreach (var row in rows)
 			{
-				var results = row.Elements("result").ToList();
-				var uprn = results.First(result => result.Attribute("column")!.Value == "uprn").Value.Trim();
-				var display = results.First(result => result.Attribute("column")!.Value == "display").Value.Trim();
+				var resultsDict = row.Elements("result").ToDictionary(r => r.Attribute("column")!.Value, r => r.Value);
+				var uprn = resultsDict["uprn"].Trim();
+				var display = resultsDict["display"].Trim();
 
 				var address = new Address
 				{
@@ -234,9 +234,9 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 			var binDays = new List<BinDay>();
 			foreach (var row in rows)
 			{
-				var results = row.Elements("result").ToList();
-				var service = results.First(result => result.Attribute("column")!.Value == "Service").Value.Trim();
-				var collectionDate = results.First(result => result.Attribute("column")!.Value == "Date").Value.Trim();
+				var resultsDict = row.Elements("result").ToDictionary(r => r.Attribute("column")!.Value, r => r.Value);
+				var service = resultsDict["Service"].Trim();
+				var collectionDate = resultsDict["Date"].Trim();
 
 				var binDay = new BinDay
 				{
@@ -282,7 +282,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 		var setCookieHeader = clientSideResponse.Headers["set-cookie"];
 		var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
 
-		var metadata = new Dictionary<string, string>
+		Dictionary<string, string> metadata = new()
 		{
 			{ "cookie", cookies },
 			{ "sid", SidRegex().Match(clientSideResponse.Content).Groups["sid"].Value },
@@ -313,7 +313,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 	/// </summary>
 	private static Dictionary<string, string> BuildMetadataWithTokens(ClientSideResponse clientSideResponse)
 	{
-		var metadata = new Dictionary<string, string>(clientSideResponse.Options.Metadata);
+		Dictionary<string, string> metadata = new(clientSideResponse.Options.Metadata);
 
 		using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 		metadata["reference"] = jsonDoc.RootElement.GetProperty("data").GetProperty("reference").GetString()!;
