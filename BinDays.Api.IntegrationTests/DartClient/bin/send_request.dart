@@ -27,11 +27,13 @@ Future<void> main() async {
 
     stdout.write(jsonEncode(response.toJson()));
     client.httpClient.close();
-  } on dio.DioException catch (e) {
-    stderr.write('DioException: ${e.message}');
+  } on dio.DioException catch (e, s) {
+    stderr.writeln('DioException: ${e.toString()}');
+    stderr.writeln(s);
     exit(1);
-  } catch (e) {
-    stderr.write('Error: $e');
+  } catch (e, s) {
+    stderr.writeln('Error: $e');
+    stderr.writeln(s);
     exit(1);
   }
 }
