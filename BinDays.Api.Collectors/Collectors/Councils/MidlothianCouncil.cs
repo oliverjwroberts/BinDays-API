@@ -76,51 +76,10 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 	private const string _baseUrl = "https://my.midlothian.gov.uk";
 
 	/// <summary>
-	/// The URL for the bin collection form.
-	/// </summary>
-	private const string _serviceUrl = "https://my.midlothian.gov.uk/service/Bin_Collection_Dates";
-
-	/// <summary>
-	/// The AchieveForms identifier for the form.
-	/// </summary>
-	private const string _formId = "AF-Form-033371a6-b0e4-4e16-a3b5-f68f592d8bf1";
-
-	/// <summary>
-	/// The AchieveForms identifier for the process.
-	/// </summary>
-	private const string _processId = "AF-Process-f434fb94-8e58-4c02-95f0-f900ca3627ce";
-
-	/// <summary>
-	/// The AchieveForms identifier for the stage.
-	/// </summary>
-	private const string _stageId = "AF-Stage-a0bdbc4e-b9fc-46f0-bb0c-14a12cd927ed";
-
-	/// <summary>
-	/// The AchieveForms URI for the form definition.
-	/// </summary>
-	private const string _formUri = "sandbox-publish://AF-Process-f434fb94-8e58-4c02-95f0-f900ca3627ce/AF-Stage-a0bdbc4e-b9fc-46f0-bb0c-14a12cd927ed/definition.json";
-
-	/// <summary>
-	/// The lookup identifier for address searches.
-	/// </summary>
-	private const string _addressLookupId = "68f7a2ca3325e";
-
-	/// <summary>
-	/// The lookup identifier for bin collection dates.
-	/// </summary>
-	private const string _binLookupId = "69a19ba76d3a2";
-
-	/// <summary>
 	/// Regex to extract the session identifier from HTML.
 	/// </summary>
 	[GeneratedRegex(@"sid=(?<sid>[a-f0-9]+)")]
 	private static partial Regex SidRegex();
-
-	/// <summary>
-	/// Regex to extract the PHP session identifier from cookies.
-	/// </summary>
-	[GeneratedRegex(@"PHPSESSID=(?<sessionId>[^;]+)")]
-	private static partial Regex SessionIdRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
@@ -140,7 +99,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 		// Fetch reference and CSRF token
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var (metadata, nextClientSideRequest) = CreateNextRefRequest(clientSideResponse);
+			var nextClientSideRequest = CreateNextRefRequest(clientSideResponse);
 
 			var response = new GetAddressesResponse
 			{
@@ -156,14 +115,12 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 			var requestBody = BuildLookupRequestBody(
 				postcode,
 				string.Empty,
-				metadata["sessionId"],
-				metadata["csrfToken"],
 				metadata["reference"]
 			);
 
 			var clientSideRequest = CreateLookupRequest(
 				3,
-				_addressLookupId,
+				"68f7a2ca3325e",
 				requestBody,
 				metadata
 			);
@@ -231,7 +188,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 		// Fetch reference and CSRF token
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var (metadata, nextClientSideRequest) = CreateNextRefRequest(clientSideResponse);
+			var nextClientSideRequest = CreateNextRefRequest(clientSideResponse);
 
 			var response = new GetBinDaysResponse
 			{
@@ -247,14 +204,12 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 			var requestBody = BuildLookupRequestBody(
 				address.Postcode!,
 				address.Uid!,
-				metadata["sessionId"],
-				metadata["csrfToken"],
 				metadata["reference"]
 			);
 
 			var clientSideRequest = CreateLookupRequest(
 				3,
-				_binLookupId,
+				"69a19ba76d3a2",
 				requestBody,
 				metadata
 			);
@@ -312,7 +267,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 		var clientSideRequest = new ClientSideRequest
 		{
 			RequestId = 1,
-			Url = _serviceUrl,
+			Url = "https://my.midlothian.gov.uk/service/Bin_Collection_Dates",
 			Method = "GET",
 		};
 
@@ -322,7 +277,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 	/// <summary>
 	/// Builds the metadata dictionary and prepares the next reference request.
 	/// </summary>
-	private static (Dictionary<string, string> Metadata, ClientSideRequest ClientSideRequest) CreateNextRefRequest(ClientSideResponse clientSideResponse)
+	private static ClientSideRequest CreateNextRefRequest(ClientSideResponse clientSideResponse)
 	{
 		var setCookieHeader = clientSideResponse.Headers["set-cookie"];
 		var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
@@ -331,7 +286,6 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 		{
 			{ "cookie", cookies },
 			{ "sid", SidRegex().Match(clientSideResponse.Content).Groups["sid"].Value },
-			{ "sessionId", SessionIdRegex().Match(cookies).Groups["sessionId"].Value },
 		};
 
 		var clientSideRequest = new ClientSideRequest
@@ -351,7 +305,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 			},
 		};
 
-		return (metadata, clientSideRequest);
+		return clientSideRequest;
 	}
 
 	/// <summary>
@@ -363,7 +317,6 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 
 		using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 		metadata["reference"] = jsonDoc.RootElement.GetProperty("data").GetProperty("reference").GetString()!;
-		metadata["csrfToken"] = jsonDoc.RootElement.GetProperty("data").GetProperty("csrfToken").GetString()!;
 
 		return metadata;
 	}
@@ -380,7 +333,7 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 		var clientSideRequest = new ClientSideRequest
 		{
 			RequestId = requestId,
-			Url = $"{_baseUrl}/apibroker/runLookup?id={lookupId}&app_name=AF-Renderer::Self&sid={metadata["sid"]}",
+			Url = $"{_baseUrl}/apibroker/runLookup?id={lookupId}",
 			Method = "POST",
 			Headers = new()
 			{
@@ -405,34 +358,20 @@ internal sealed partial class MidlothianCouncil : GovUkCollectorBase, ICollector
 	private static string BuildLookupRequestBody(
 		string postcode,
 		string uprn,
-		string sessionId,
-		string csrfToken,
 		string reference)
 	{
 		var fromDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
 		var requestBody = $$"""
 		{
-			"stopOnFailure": true,
-			"usePHPIntegrations": true,
-			"stage_id": "{{_stageId}}",
-			"formId": "{{_formId}}",
 			"formValues": {
 				"Section 1": {
 					"postcode": { "value": "{{postcode}}" },
-					"listAddress": { "value": "{{uprn}}" },
 					"uprn": { "value": "{{uprn}}" },
 					"fromDate": { "value": "{{fromDate}}" }
 				}
 			},
-			"formUri": "{{_formUri}}",
-			"processId": "{{_processId}}",
-			"reference": "{{reference}}",
-			"tokens": {
-				"session_id": "{{sessionId}}",
-				"csrf_token": "{{csrfToken}}",
-				"reference": "{{reference}}"
-			}
+			"reference": "{{reference}}"
 		}
 		""";
 
