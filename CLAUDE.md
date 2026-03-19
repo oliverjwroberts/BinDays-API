@@ -25,6 +25,11 @@
 
 See `.gemini/styleguide.md` for the full style guide with do's and don'ts.
 
+## Prerequisites
+
+- .NET SDK 8.0+
+- Dart SDK 3.7+ (for integration tests)
+
 ## Build and test
 
 ```bash
@@ -32,3 +37,5 @@ dotnet build
 dotnet test
 dotnet format --severity info
 ```
+
+The first `dotnet build` automatically compiles the Dart CLI wrapper (`BinDays.Api.IntegrationTests/DartClient/`) via an MSBuild target. This requires the Dart SDK to be installed. Delete `DartClient/bin/send_request.exe` to force a recompile.

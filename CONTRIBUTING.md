@@ -33,7 +33,7 @@ The style guide covers everything you need to know, including:
 
 ### Quick Workflow
 
-1.  **Prerequisites:** Ensure you have the .NET SDK and an IDE installed.
+1.  **Prerequisites:** Ensure you have the [.NET SDK](https://dotnet.microsoft.com/download) and [Dart SDK](https://dart.dev/get-dart) installed. The Dart SDK is required for integration tests, which use a Dart/Dio CLI wrapper to execute client-side HTTP requests with the real BinDays-Client library.
 2.  **Reverse-Engineer:** Use your browser's developer tools to analyze the network traffic for the council's bin day lookup service.
 3.  **Implement:** Create your collector and integration test classes, following the patterns in the **[C# Style Guide](/.gemini/styleguide.md)**.
 4.  **Test:** Run your new integration test to verify that the collector works correctly.

@@ -2,21 +2,27 @@ namespace BinDays.Api.IntegrationTests.Helpers;
 
 using BinDays.Api.Collectors.Models;
 using System;
-using System.Linq;
-using System.Net;
+using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text;
+using System.Text.Json;
 using Xunit.Abstractions;
 
 /// <summary>
 /// A client helper for executing multi-step requests during integration tests.
-/// Posts to the real API endpoints and executes external client-side requests.
+/// Posts to the real API endpoints and spawns the Dart/Dio CLI for external requests.
 /// </summary>
 internal sealed class IntegrationTestClient
 {
 	private readonly HttpClient _apiClient;
-	private readonly HttpClient _externalClient;
+	private readonly string _dartCliPath;
+	private readonly ITestOutputHelper _outputHelper;
+
+	private static readonly JsonSerializerOptions _jsonOptions = new()
+	{
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+	};
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="IntegrationTestClient"/> class.
@@ -25,32 +31,25 @@ internal sealed class IntegrationTestClient
 	public IntegrationTestClient(ITestOutputHelper outputHelper)
 	{
 		_apiClient = BinDaysApiFactory.CreateClient();
-
-		var enableHttpLogging = string.Equals(
-			Environment.GetEnvironmentVariable("BINDAYS_ENABLE_HTTP_LOGGING"),
-			"true",
-			StringComparison.OrdinalIgnoreCase
-		);
-
-		// Single client that never auto-follows redirects; redirects are handled manually
-		// to match Dio client behaviour (redirect loop detection).
-		var handler = new HttpClientHandler
-		{
-			UseCookies = false,
-			CookieContainer = new CookieContainer(),
-			AllowAutoRedirect = false,
-		};
-		_externalClient = CreateExternalClient(handler, enableHttpLogging, outputHelper);
+		_outputHelper = outputHelper;
+		_dartCliPath = ResolveDartCliPath();
 	}
 
 	/// <summary>
-	/// Creates an <see cref="HttpClient"/> for external (council website) requests.
+	/// Resolves the path to the compiled Dart CLI executable.
+	/// Uses BINDAYS_DART_CLI_PATH env var if set, otherwise falls back to the default relative path.
 	/// </summary>
-	private static HttpClient CreateExternalClient(HttpClientHandler handler, bool enableLogging, ITestOutputHelper outputHelper)
+	private static string ResolveDartCliPath()
 	{
-		return enableLogging
-			? new HttpClient(new LoggingHttpHandler(outputHelper, handler))
-			: new HttpClient(handler);
+		var envPath = Environment.GetEnvironmentVariable("BINDAYS_DART_CLI_PATH");
+		if (!string.IsNullOrEmpty(envPath))
+		{
+			return envPath;
+		}
+
+		// Default: relative to the test project directory
+		var testProjectDir = Path.GetDirectoryName(typeof(IntegrationTestClient).Assembly.Location)!;
+		return Path.GetFullPath(Path.Combine(testProjectDir, "..", "..", "..", "DartClient", "bin", "send_request.exe"));
 	}
 
 	/// <summary>
@@ -124,121 +123,54 @@ internal sealed class IntegrationTestClient
 	}
 
 	/// <summary>
-	/// Sends a single client-side HTTP request as defined by the API.
-	/// Manually follows redirects when enabled, with loop detection matching Dio client behaviour.
+	/// Sends a single client-side HTTP request by spawning the Dart/Dio CLI process.
+	/// The CLI executes the request using the real Dio HTTP client, matching production behaviour.
 	/// </summary>
 	private async Task<ClientSideResponse> SendClientSideRequestAsync(ClientSideRequest request)
 	{
-		var currentUrl = request.Url;
-		var currentMethod = request.Method;
-		var currentBody = request.Body;
-		var currentHeaders = new Dictionary<string, string>(request.Headers, StringComparer.OrdinalIgnoreCase);
-		var visitedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { currentUrl };
+		var requestJson = JsonSerializer.Serialize(request, _jsonOptions);
 
-		while (true)
+		using var process = new Process();
+		process.StartInfo = new ProcessStartInfo
 		{
-			using var httpRequest = new HttpRequestMessage(new HttpMethod(currentMethod), currentUrl);
-			var headersToSend = new Dictionary<string, string>(currentHeaders, StringComparer.OrdinalIgnoreCase);
+			FileName = _dartCliPath,
+			RedirectStandardInput = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false,
+			CreateNoWindow = true,
+		};
 
-			if (!string.IsNullOrEmpty(currentBody))
-			{
-				var mediaTypeOnly = "application/octet-stream";
-				var requestEncoding = Encoding.UTF8;
+		process.Start();
 
-				var contentTypeKey = headersToSend.Keys.FirstOrDefault(k => k.Equals("content-type", StringComparison.OrdinalIgnoreCase));
+		await process.StandardInput.WriteAsync(requestJson);
+		process.StandardInput.Close();
 
-				if (contentTypeKey != null)
-				{
-					var fullContentType = headersToSend[contentTypeKey];
-					headersToSend.Remove(contentTypeKey);
+		var stdoutTask = process.StandardOutput.ReadToEndAsync();
+		var stderrTask = process.StandardError.ReadToEndAsync();
 
-					var parts = fullContentType.Split(';');
-					mediaTypeOnly = parts[0].Trim();
-				}
-				else if (currentMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) && LooksLikeJson(currentBody))
-				{
-					mediaTypeOnly = "application/json";
-				}
-
-				httpRequest.Content = new StringContent(currentBody, requestEncoding, mediaTypeOnly);
-			}
-
-			foreach (var header in headersToSend)
-			{
-				if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
-				{
-					httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
-				}
-			}
-
-			using var httpResponse = await _externalClient.SendAsync(httpRequest, HttpCompletionOption.ResponseContentRead);
-
-			// If redirects are enabled and we got a redirect status, follow it manually
-			if (request.Options.FollowRedirects && IsRedirectStatusCode(httpResponse.StatusCode) && httpResponse.Headers.Location != null)
-			{
-				var redirectUrl = httpResponse.Headers.Location.IsAbsoluteUri
-					? httpResponse.Headers.Location.AbsoluteUri
-					: new Uri(new Uri(currentUrl), httpResponse.Headers.Location).AbsoluteUri;
-
-				if (!visitedUrls.Add(redirectUrl))
-				{
-					throw new HttpRequestException($"Redirect loop detected: {redirectUrl}");
-				}
-
-				// Redirects switch to GET and drop the body (except 307/308)
-				if (httpResponse.StatusCode != HttpStatusCode.TemporaryRedirect &&
-					httpResponse.StatusCode != (HttpStatusCode)308)
-				{
-					currentMethod = "GET";
-					currentBody = null;
-				}
-
-				currentUrl = redirectUrl;
-				continue;
-			}
-
-			var responseContent = await httpResponse.Content.ReadAsStringAsync();
-
-			var responseHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			foreach (var header in httpResponse.Headers.Concat(httpResponse.Content.Headers))
-			{
-				// Convert headers to lowercase to match BinDays-Client library
-				responseHeaders[header.Key.ToLower()] = string.Join(",", header.Value);
-			}
-
-			return new ClientSideResponse
-			{
-				RequestId = request.RequestId,
-				StatusCode = (int)httpResponse.StatusCode,
-				Headers = responseHeaders,
-				Content = responseContent,
-				ReasonPhrase = httpResponse.ReasonPhrase ?? string.Empty,
-				Options = request.Options,
-			};
+		var exited = process.WaitForExit(30_000);
+		if (!exited)
+		{
+			process.Kill();
+			throw new TimeoutException("Dart CLI process timed out after 30 seconds.");
 		}
-	}
 
-	/// <summary>
-	/// Returns true for HTTP status codes that indicate a redirect.
-	/// </summary>
-	private static bool IsRedirectStatusCode(HttpStatusCode statusCode) =>
-		statusCode is HttpStatusCode.Moved
-			or HttpStatusCode.Found
-			or HttpStatusCode.SeeOther
-			or HttpStatusCode.TemporaryRedirect
-			or (HttpStatusCode)308;
+		var stdout = await stdoutTask;
+		var stderr = await stderrTask;
 
-	/// <summary>
-	/// Basic check to see if a string looks like a JSON object or array.
-	/// </summary>
-	/// <param name="value">The string to check.</param>
-	/// <returns>True if it starts/ends with {} or [], false otherwise.</returns>
-	private static bool LooksLikeJson(string value)
-	{
-		if (string.IsNullOrWhiteSpace(value)) return false;
-		var trimmedValue = value.Trim();
+		_outputHelper.WriteLine($"[Dart CLI] Exit code: {process.ExitCode}");
+		if (!string.IsNullOrEmpty(stderr))
+		{
+			_outputHelper.WriteLine($"[Dart CLI] stderr: {stderr}");
+		}
 
-		return (trimmedValue.StartsWith('{') && trimmedValue.EndsWith('}')) ||
-			   (trimmedValue.StartsWith('[') && trimmedValue.EndsWith(']'));
+		if (process.ExitCode != 0)
+		{
+			throw new HttpRequestException($"Dart CLI failed (exit code {process.ExitCode}): {stderr}");
+		}
+
+		return JsonSerializer.Deserialize<ClientSideResponse>(stdout, _jsonOptions)
+			?? throw new InvalidOperationException("Dart CLI returned null response.");
 	}
 }
