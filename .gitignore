@@ -43,6 +43,11 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 
+# Dart CLI wrapper (keep source, ignore build artifacts)
+!**/DartClient/bin/
+**/DartClient/bin/*.exe
+**/DartClient/.dart_tool/
+
 # Agent automation output files
 .agent/playwright/out/
 !.agent/playwright/out/.gitkeep

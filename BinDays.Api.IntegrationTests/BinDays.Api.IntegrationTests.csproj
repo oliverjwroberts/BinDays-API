@@ -24,4 +24,19 @@
   <ItemGroup>
     <ProjectReference Include="..\BinDays.Api\BinDays.Api.csproj" />
   </ItemGroup>
+  <!--
+    Dart CLI wrapper for integration tests. Compiles DartClient/bin/send_request.dart into a
+    native executable that uses the real BinDays-Client Dio HTTP client to execute client-side
+    requests, replacing the .NET HttpClient reimplementation. Only runs when the exe is missing;
+    delete DartClient/bin/send_request.exe to force a recompile. Requires the Dart SDK.
+  -->
+  <PropertyGroup>
+    <DartClientDir>$(MSBuildProjectDirectory)\DartClient</DartClientDir>
+    <DartCliOutput>$(DartClientDir)\bin\send_request.exe</DartCliOutput>
+  </PropertyGroup>
+
+  <Target Name="CompileDartCli" BeforeTargets="Build" Condition="!Exists('$(DartCliOutput)')">
+    <Exec Command="dart pub get" WorkingDirectory="$(DartClientDir)" />
+    <Exec Command="dart compile exe bin/send_request.dart -o bin/send_request.exe" WorkingDirectory="$(DartClientDir)" />
+  </Target>
 </Project>

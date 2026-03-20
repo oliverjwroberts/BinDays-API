@@ -60,6 +60,9 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+
       - name: Workaround for SSL error on self-hosted runner
         run: ./.github/scripts/integration-tests/ssl-workaround.sh
 

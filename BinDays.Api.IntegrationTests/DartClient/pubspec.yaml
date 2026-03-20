@@ -1,0 +1,13 @@
+name: dart_client
+description: Dart/Dio CLI wrapper for integration tests.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  bindays_client:
+    git:
+      url: https://github.com/BadgerHobbs/BinDays-Client.git
+      ref: main
