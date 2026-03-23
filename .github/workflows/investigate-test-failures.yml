@@ -101,6 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      pull-requests: write
       actions: read
 
     steps:

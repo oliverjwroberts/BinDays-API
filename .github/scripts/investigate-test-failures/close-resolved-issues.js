@@ -1,8 +1,10 @@
 /**
- * Close collector-broken issues for councils whose tests now pass.
+ * Close collector-broken issues (and their associated PRs) for councils
+ * whose tests now pass.
  *
  * Lists jobs from the triggering workflow run, identifies councils that
- * passed, and closes any matching open "collector-broken" issues.
+ * passed, and closes any matching open "collector-broken" issues along
+ * with any open pull requests that reference those issues.
  *
  * Required environment variables:
  *   WORKFLOW_RUN_ID - The ID of the triggering workflow run
@@ -53,6 +55,7 @@ module.exports = async ({ github, context, core }) => {
   });
 
   let closedCount = 0;
+  let closedPrCount = 0;
   for (const issue of openIssues) {
     const match = issue.title.match(/^Broken collector:\s*(.+)$/);
     if (!match) continue;
@@ -61,6 +64,31 @@ module.exports = async ({ github, context, core }) => {
     if (!passingCouncils.has(councilName)) continue;
 
     core.info(`Closing issue #${issue.number} — ${councilName} is passing again`);
+
+    // Close any open pull requests that reference this issue
+    const { data: linkedPrs } = await github.rest.search.issuesAndPullRequests({
+      q: `repo:${context.repo.owner}/${context.repo.repo} is:pr is:open ${issue.number} in:body`,
+    });
+
+    for (const pr of linkedPrs.items) {
+      core.info(`Closing PR #${pr.number} — linked to resolved issue #${issue.number}`);
+
+      await github.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: pr.number,
+        body: `Automatically closing — **${councilName}** integration tests are passing again, so this fix is no longer needed.\n\n[Workflow run](${runUrl})`,
+      });
+
+      await github.rest.pulls.update({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: pr.number,
+        state: 'closed',
+      });
+
+      closedPrCount++;
+    }
 
     await github.rest.issues.createComment({
       owner: context.repo.owner,
@@ -80,5 +108,5 @@ module.exports = async ({ github, context, core }) => {
     closedCount++;
   }
 
-  core.info(`Closed ${closedCount} issue(s)`);
+  core.info(`Closed ${closedCount} issue(s) and ${closedPrCount} pull request(s)`);
 };
