@@ -88,7 +88,7 @@ internal sealed partial class CentralBedfordshireCouncil : GovUkCollectorBase, I
 		else if (clientSideResponse.RequestId == 1)
 		{
 			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
-			var requestBody = $$"""address_text=&postcode={{postcode}}&search=""";
+			var requestBody = $"postcode={postcode}";
 
 			var clientSideRequest = new ClientSideRequest
 			{
@@ -174,7 +174,12 @@ internal sealed partial class CentralBedfordshireCouncil : GovUkCollectorBase, I
 			var uprn = uidParts[0];
 			var addressText = uidParts[1];
 
-			var requestBody = $$"""address_text={{addressText}}&postcode={{address.Postcode!}}&address={{uprn}}&search=""";
+			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
+			{
+				{ "address_text", addressText },
+				{ "postcode", address.Postcode! },
+				{ "address", uprn },
+			});
 
 			var clientSideRequest = new ClientSideRequest
 			{
