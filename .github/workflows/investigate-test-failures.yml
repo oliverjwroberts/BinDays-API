@@ -31,6 +31,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+
       - name: Collect failure information
         id: collect
         uses: actions/github-script@v7
