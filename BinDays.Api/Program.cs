@@ -1,4 +1,3 @@
-using BinDays.Api.Incidents;
 using Scalar.AspNetCore;
 using StackExchange.Redis;
 
@@ -12,13 +11,12 @@ builder.Host.ConfigureContainer<Autofac.ContainerBuilder>(BinDays.Api.Initialisa
 
 builder.Services.AddControllers();
 
-// Add caching for responses and incidents, either in-memory or Redis
+// Add caching for responses, either in-memory or Redis
 var redis = builder.Configuration.GetValue<string>("Redis");
 if (!string.IsNullOrEmpty(redis))
 {
 	var multiplexer = ConnectionMultiplexer.Connect(redis);
 	builder.Services.AddSingleton<IConnectionMultiplexer>(multiplexer);
-	builder.Services.AddSingleton<IIncidentStore, RedisIncidentStore>();
 
 	builder.Services.AddStackExchangeRedisCache(options =>
 	{
@@ -28,7 +26,6 @@ if (!string.IsNullOrEmpty(redis))
 else
 {
 	builder.Services.AddDistributedMemoryCache();
-	builder.Services.AddSingleton<IIncidentStore, InMemoryIncidentStore>();
 }
 
 // Health check for monitoring
