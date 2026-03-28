@@ -1,6 +1,6 @@
 # BinDays-API
 
-.NET 8.0 API that returns bin collection schedules for UK councils. Collectors replicate council website HTTP requests; the actual requests are executed client-side by the mobile app, so the API is stateless.
+.NET 10.0 API that returns bin collection schedules for UK councils. Collectors replicate council website HTTP requests; the actual requests are executed client-side by the mobile app, so the API is stateless.
 
 ## Architecture
 
@@ -27,7 +27,7 @@ See `.gemini/styleguide.md` for the full style guide with do's and don'ts.
 
 ## Prerequisites
 
-- .NET SDK 8.0+
+- .NET SDK 10.0+
 - Dart SDK 3.7+ (for integration tests)
 
 ## Build and test

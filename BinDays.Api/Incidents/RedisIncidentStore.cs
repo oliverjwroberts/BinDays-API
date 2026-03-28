@@ -59,7 +59,7 @@ internal sealed class RedisIncidentStore : IIncidentStore
 
 		var incidents = entries
 			.Where(e => e.HasValue)
-			.Select(e => JsonSerializer.Deserialize<IncidentRecord>(e!, _serializerOptions))
+			.Select(e => JsonSerializer.Deserialize<IncidentRecord>((string)e!, _serializerOptions))
 			.OfType<IncidentRecord>()
 			.ToList();
 

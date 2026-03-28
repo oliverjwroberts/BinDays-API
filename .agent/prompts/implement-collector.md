@@ -45,7 +45,7 @@ Test that the .NET SDK is installed and can build the project:
 dotnet --version
 ```
 
-Verify the version is displayed (should be .NET 8.0 or higher).
+Verify the version is displayed (should be .NET 10.0 or higher).
 
 Build the solution to ensure it compiles:
 
