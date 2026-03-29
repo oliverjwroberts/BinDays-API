@@ -1,3 +1,4 @@
+using BinDays.Api.Initialisation;
 using Scalar.AspNetCore;
 using StackExchange.Redis;
 
@@ -9,10 +10,17 @@ builder.Host.UseServiceProviderFactory(new Autofac.Extensions.DependencyInjectio
 // Register services directly with Autofac using the ConfigureContainer method
 builder.Host.ConfigureContainer<Autofac.ContainerBuilder>(BinDays.Api.Initialisation.DependencyInjection.ConfigureContainer);
 
-builder.Services.AddControllers();
+var redis = builder.Configuration.GetValue<string>("Redis");
+
+builder.Services.AddControllers(options =>
+{
+	if (string.IsNullOrEmpty(redis))
+	{
+		options.Conventions.Add(new ExcludeCacheControllerConvention());
+	}
+});
 
 // Add caching for responses, either in-memory or Redis
-var redis = builder.Configuration.GetValue<string>("Redis");
 if (!string.IsNullOrEmpty(redis))
 {
 	var multiplexer = ConnectionMultiplexer.Connect(redis);
@@ -42,7 +50,10 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 app.MapOpenApi();
-app.MapScalarApiReference();
+app.MapScalarApiReference(options =>
+{
+	options.WithOperationTitleSource(OperationTitleSource.Path);
+});
 
 app.UseCors(x => x
 	.AllowAnyOrigin()
