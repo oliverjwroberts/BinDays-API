@@ -1,4 +1,5 @@
 using BinDays.Api.Initialisation;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using StackExchange.Redis;
 
@@ -45,14 +46,30 @@ builder.Services.AddLogging(loggingBuilder =>
 	loggingBuilder.AddSeq(builder.Configuration.GetSection("Seq"));
 });
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+	options.AddDocumentTransformer((document, context, ct) =>
+	{
+		document.Components ??= new OpenApiComponents();
+		document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+		document.Components.SecuritySchemes.Add("ApiKey", new OpenApiSecurityScheme
+		{
+			Type = SecuritySchemeType.ApiKey,
+			In = ParameterLocation.Header,
+			Name = "X-Api-Key",
+		});
+		return Task.CompletedTask;
+	});
+});
 
 var app = builder.Build();
 
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
-	options.WithOperationTitleSource(OperationTitleSource.Path);
+	options
+		.WithOperationTitleSource(OperationTitleSource.Path)
+		.AddApiKeyAuthentication("ApiKey", scheme => { });
 });
 
 app.UseCors(x => x

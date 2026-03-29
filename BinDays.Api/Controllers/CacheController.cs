@@ -4,6 +4,7 @@ using BinDays.Api.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
 using StackExchange.Redis;
 using System.Linq;
 
@@ -66,66 +67,87 @@ public class CacheController : ControllerBase
 	}
 
 	/// <summary>
-	/// Gets the collector cache entry for the given postcode.
+	/// Returns a JSON object mapping each cache key matching the given Redis glob pattern to its cached value.
 	/// </summary>
-	/// <param name="postcode">The postcode to retrieve the collector cache entry for.</param>
-	/// <returns>The cached JSON value, or 404 if not found.</returns>
-	[HttpGet]
-	[Route("/cache/collectors/{postcode}")]
-	public IActionResult GetCollector(string postcode)
+	/// <param name="pattern">The Redis glob pattern to match keys against.</param>
+	/// <returns>A <see cref="JObject"/> mapping cache keys to their deserialized values.</returns>
+	private JObject GetByPattern(string pattern)
 	{
-		var formattedPostcode = FormatPostcodeForCacheKey(postcode);
-		var cachedValue = _cache.GetString($"collector-{formattedPostcode}");
-
-		if (cachedValue == null)
+		var server = _multiplexer.GetServers().First();
+		var result = new JObject();
+		foreach (var key in server.Keys(pattern: pattern))
 		{
-			return NotFound();
+			var stringKey = (string)key!;
+			var value = _cache.GetString(stringKey);
+			result[stringKey] = value != null ? JToken.Parse(value) : JValue.CreateNull();
 		}
-
-		return Content(cachedValue, "application/json");
+		return result;
 	}
 
 	/// <summary>
-	/// Gets the address cache entry for the given gov.uk ID and postcode.
+	/// Gets collector cache entries. Scans all entries when no postcode is provided,
+	/// otherwise returns the entry for the given postcode.
 	/// </summary>
-	/// <param name="govUkId">The gov.uk identifier for the collector.</param>
-	/// <param name="postcode">The postcode to retrieve the address cache entry for.</param>
-	/// <returns>The cached JSON value, or 404 if not found.</returns>
+	/// <param name="postcode">Optional postcode to retrieve a specific entry.</param>
+	/// <returns>A JSON object mapping cache keys to their values, or 404 for an exact lookup with no result.</returns>
 	[HttpGet]
-	[Route("/cache/addresses/{govUkId}/{postcode}")]
-	public IActionResult GetAddresses(string govUkId, string postcode)
+	[Route("/cache/collectors")]
+	public IActionResult GetCollectors(string? postcode = null)
 	{
-		var formattedPostcode = FormatPostcodeForCacheKey(postcode);
-		var cachedValue = _cache.GetString($"addresses-{govUkId}-{formattedPostcode}");
+		var formattedPostcode = postcode != null ? FormatPostcodeForCacheKey(postcode) : null;
+		var result = GetByPattern($"collector-{formattedPostcode ?? "*"}");
 
-		if (cachedValue == null)
+		if (postcode != null && result.Count == 0)
 		{
 			return NotFound();
 		}
 
-		return Content(cachedValue, "application/json");
+		return Content(result.ToString(), "application/json");
 	}
 
 	/// <summary>
-	/// Gets the bin day cache entry for the given gov.uk ID, postcode, and address UID.
+	/// Gets address cache entries. Any combination of parameters may be provided to narrow the scope;
+	/// omitting all parameters returns all address entries.
 	/// </summary>
-	/// <param name="govUkId">The gov.uk identifier for the collector.</param>
-	/// <param name="postcode">The postcode of the address.</param>
-	/// <param name="uid">The unique identifier of the address.</param>
-	/// <returns>The cached JSON value, or 404 if not found.</returns>
+	/// <param name="govUkId">Optional gov.uk identifier to filter by.</param>
+	/// <param name="postcode">Optional postcode to filter by.</param>
+	/// <returns>A JSON object mapping cache keys to their values, or 404 for an exact lookup with no result.</returns>
 	[HttpGet]
-	[Route("/cache/bin-days/{govUkId}/{postcode}/{uid}")]
-	public IActionResult GetBinDays(string govUkId, string postcode, string uid)
+	[Route("/cache/addresses")]
+	public IActionResult GetAddresses(string? govUkId = null, string? postcode = null)
 	{
-		var formattedPostcode = FormatPostcodeForCacheKey(postcode);
-		var cachedValue = _cache.GetString($"bin-days-{govUkId}-{formattedPostcode}-{uid}");
+		var formattedPostcode = postcode != null ? FormatPostcodeForCacheKey(postcode) : null;
+		var result = GetByPattern($"addresses-{govUkId ?? "*"}-{formattedPostcode ?? "*"}");
 
-		if (cachedValue == null)
+		if (govUkId != null && postcode != null && result.Count == 0)
 		{
 			return NotFound();
 		}
 
-		return Content(cachedValue, "application/json");
+		return Content(result.ToString(), "application/json");
+	}
+
+	/// <summary>
+	/// Gets bin day cache entries. Any combination of parameters may be provided to narrow the scope;
+	/// omitting all parameters returns all bin day entries.
+	/// </summary>
+	/// <param name="govUkId">Optional gov.uk identifier to filter by.</param>
+	/// <param name="postcode">Optional postcode to filter by.</param>
+	/// <param name="uid">Optional address UID to filter by.</param>
+	/// <returns>A JSON object mapping cache keys to their values, or 404 for an exact lookup with no result.</returns>
+	[HttpGet]
+	[Route("/cache/bin-days")]
+	public IActionResult GetBinDays(string? govUkId = null, string? postcode = null, string? uid = null)
+	{
+		var formattedPostcode = postcode != null ? FormatPostcodeForCacheKey(postcode) : null;
+		var result = GetByPattern($"bin-days-{govUkId ?? "*"}-{formattedPostcode ?? "*"}-{uid ?? "*"}");
+
+		if (govUkId != null && postcode != null && uid != null && result.Count == 0)
+		{
+			return NotFound();
+		}
+
+		return Content(result.ToString(), "application/json");
 	}
 
 	/// <summary>
