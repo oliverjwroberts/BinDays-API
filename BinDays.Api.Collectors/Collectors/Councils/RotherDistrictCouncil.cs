@@ -65,6 +65,12 @@ internal sealed partial class RotherDistrictCouncil : GovUkCollectorBase, IColle
 	[GeneratedRegex(@"(?<=\d)(st|nd|rd|th)", RegexOptions.IgnoreCase)]
 	private static partial Regex OrdinalSuffixRegex();
 
+	/// <summary>
+	/// Regex to check whether a date string contains at least one digit.
+	/// </summary>
+	[GeneratedRegex(@"\d")]
+	private static partial Regex DateDigitRegex();
+
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
@@ -178,22 +184,32 @@ internal sealed partial class RotherDistrictCouncil : GovUkCollectorBase, IColle
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var data = jsonDoc.RootElement.GetProperty("data").GetString()!;
 
-			var rawBinDays = BinDaysRegex().Matches(data);
+			var rawBinDays = BinDaysRegex().Matches(data)!;
 
 			// Iterate through each bin day, and create a new bin day object
 			var binDays = new List<BinDay>();
 			foreach (Match rawBinDay in rawBinDays)
 			{
 				var service = rawBinDay.Groups["service"].Value.Trim();
+				var bins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
+
+				if (bins.Count == 0)
+				{
+					continue;
+				}
+
 				var rawDate = rawBinDay.Groups["date"].Value.Trim();
+
+				if (!DateDigitRegex().IsMatch(rawDate))
+				{
+					continue;
+				}
 
 				var dateString = OrdinalSuffixRegex().Replace(rawDate, string.Empty).Trim();
 				var date = DateUtilities.ParseDateInferringYear(
 					dateString,
 					"dddd d MMMM"
 				);
-
-				var bins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 
 				var binDay = new BinDay
 				{
