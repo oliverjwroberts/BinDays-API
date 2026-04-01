@@ -23,12 +23,6 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 	public override string GovUkId => "plymouth";
 
 	/// <summary>
-	/// Regex to extract the session ID (sid) from HTML content.
-	/// </summary>
-	[GeneratedRegex(@"sid=([a-f0-9]+)")]
-	private static partial Regex SessionIdRegex();
-
-	/// <summary>
 	/// The list of bin types for this collector.
 	/// </summary>
 	private readonly IReadOnlyCollection<Bin> _binTypes = [
@@ -36,21 +30,27 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 		{
 			Name = "Domestic",
 			Colour = BinColour.Brown,
-			Keys = [ "DO" ],
+			Keys = [ "Residual" ],
 		},
 		new()
 		{
 			Name = "Recycling",
 			Colour = BinColour.Green,
-			Keys = [ "RE" ],
+			Keys = [ "Recycling" ],
 		},
 		new()
 		{
 			Name = "Garden Waste",
 			Colour = BinColour.Black,
-			Keys = [ "GA", "OR" ],
+			Keys = [ "Garden" ],
 		},
 	];
+
+	/// <summary>
+	/// Regex to extract the session ID (sid) from HTML content.
+	/// </summary>
+	[GeneratedRegex(@"sid=([a-f0-9]+)")]
+	private static partial Regex SessionIdRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
@@ -67,7 +67,7 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 
 			var getAddressesResponse = new GetAddressesResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = clientSideRequest,
 			};
 
 			return getAddressesResponse;
@@ -124,7 +124,7 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 
 			var getAddressesResponse = new GetAddressesResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = clientSideRequest,
 			};
 
 			return getAddressesResponse;
@@ -190,117 +190,144 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 
 			var getBinDaysResponse = new GetBinDaysResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = clientSideRequest,
 			};
 
 			return getBinDaysResponse;
 		}
-		// Step 2: Get Bin Days using Session ID and UPRN
+		// Step 2: Get Collective API key using Session ID and UPRN
 		else if (clientSideResponse.RequestId == 1)
 		{
-			// Get set-cookies from response
 			var setCookies = clientSideResponse.Headers["set-cookie"];
 			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookies);
-
-			// Extract Session ID from Step 1 response content
 			var sessionId = SessionIdRegex().Match(clientSideResponse.Content).Groups[1].Value;
 
-			// Prepare request body as a JSON string
-			var requestBodyObject = new
-			{
-				formValues = new
+			var requestBody = $$"""
 				{
-					Section1 = new
-					{
-						number1 = new
-						{
-							name = "number1",
-							type = "number",
-							id = "AF-Field-f72d45bf-709a-477e-8f2f-0f974987af9c",
-							value_changed = true,
-							section_id = "AF-Section-e3363624-b9e6-4086-8bf2-ff38d6cd36e2",
-							label = "UPRN",
-							value = address.Uid,
-							path = "root/number1",
-						},
-						lastncoll = new
-						{
-							name = "lastncoll",
-							type = "text",
-							id = "AF-Field-a752c466-dd33-4665-9e51-784382c7047e",
-							value_changed = true,
-							section_id = "AF-Section-e3363624-b9e6-4086-8bf2-ff38d6cd36e2",
-							label = "lastncoll",
-							value_label = "",
-							value = "0",
-							path = "root/lastncoll",
-						},
-						nextncoll = new
-						{
-							name = "nextncoll",
-							type = "text",
-							id = "AF-Field-34b90039-2a9f-42b0-a397-350774ca0edd",
-							value_changed = true,
-							section_id = "AF-Section-e3363624-b9e6-4086-8bf2-ff38d6cd36e2",
-							label = "nextncoll",
-							value = "8",
-							path = "root/nextncoll",
+					"formValues": {
+						"Section1": {
+							"number1": {
+								"value": "{{address.Uid}}"
+							}
 						}
 					}
 				}
-			};
-			var requestBody = JsonSerializer.Serialize(requestBodyObject);
+				""";
 
-			var requestUrl = $"https://plymouth-self.achieveservice.com/apibroker/?api=RunLookup&id=5c99439d85f83&sid={sessionId}";
-
-			var requestHeaders = new Dictionary<string, string> {
-				{"content-type", Constants.ApplicationJson},
-				{"cookie", requestCookies},
-			};
+			var requestUrl = $"https://plymouth-self.achieveservice.com/apibroker/runLookup?id=6936e38f6d376&repeat_against=&noRetry=true&getOnlyTokens=undefined&log_id=&app_name=AF-Renderer::Self&sid={sessionId}";
 
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
 				Url = requestUrl,
 				Method = "POST",
-				Headers = requestHeaders,
+				Headers = new()
+				{
+					{ "content-type", Constants.ApplicationJson },
+					{ "cookie", requestCookies },
+				},
+				Body = requestBody,
+				Options = new ClientSideOptions
+				{
+					Metadata =
+					{
+						{ "sessionId", sessionId },
+						{ "cookie", requestCookies },
+					},
+				},
+			};
+
+			var getBinDaysResponse = new GetBinDaysResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getBinDaysResponse;
+		}
+		// Step 3: Get collection jobs using Collective API key
+		else if (clientSideResponse.RequestId == 2)
+		{
+			var responseJson = JsonDocument.Parse(clientSideResponse.Content).RootElement;
+			var collectiveKey = responseJson
+				.GetProperty("integration").GetProperty("transformed").GetProperty("rows_data")
+				.GetProperty("0").GetProperty("collectiveKey").GetString()!;
+
+			var sessionId = clientSideResponse.Options.Metadata["sessionId"];
+			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
+
+			var startDate = DateTime.Today.ToString("yyyy-MM-ddT00:00:00");
+			var endDate = DateTime.Today.AddDays(90).ToString("yyyy-MM-ddT00:00:00");
+
+			var requestBody = $$"""
+				{
+					"formValues": {
+						"Section1": {
+							"collectiveKey": {
+								"value": "{{collectiveKey}}"
+							},
+							"collectiveUPRN": {
+								"value": "{{address.Uid}}"
+							},
+							"collectiveGetJobStartDate": {
+								"value": "{{startDate}}"
+							},
+							"collectiveGetJobEndDate": {
+								"value": "{{endDate}}"
+							}
+						}
+					}
+				}
+				""";
+
+			var requestUrl = $"https://plymouth-self.achieveservice.com/apibroker/runLookup?id=698b9c49a3c13&repeat_against=&noRetry=false&getOnlyTokens=undefined&log_id=&app_name=AF-Renderer::Self&sid={sessionId}";
+
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 3,
+				Url = requestUrl,
+				Method = "POST",
+				Headers = new()
+				{
+					{ "content-type", Constants.ApplicationJson },
+					{ "cookie", requestCookies },
+				},
 				Body = requestBody,
 			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = clientSideRequest,
 			};
 
 			return getBinDaysResponse;
 		}
-		// Step 3: Process Bin Days from Response
-		else if (clientSideResponse.RequestId == 2)
+		// Step 4: Process collection jobs from response
+		else if (clientSideResponse.RequestId == 3)
 		{
-			// Parse response content as JSON object
 			var responseJson = JsonDocument.Parse(clientSideResponse.Content).RootElement;
 			var rawBinDays = responseJson.GetProperty("integration").GetProperty("transformed").GetProperty("rows_data");
 
-			// Iterate through each collection entry
 			var binDays = new List<BinDay>();
 			foreach (var property in rawBinDays.EnumerateObject())
 			{
 				var binDayData = property.Value;
 
-				var dateString = binDayData.GetProperty("Date").ToString();
-				var roundType = binDayData.GetProperty("Round_Type").ToString();
+				var dateString = binDayData.GetProperty("collectiveCollectionDate").ToString();
+				var wasteType = binDayData.GetProperty("collectiveWasteType").ToString();
 
-				// Parse date (e.g. '2025-05-07T00:00:00')
-				var date = DateUtilities.ParseDateExact(dateString, "yyyy-MM-ddTHH:mm:ss");
+				var date = DateUtilities.ParseDateExact(dateString, "dd/MM/yyyy");
+				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, wasteType);
 
-				// Find matching bin types based on the round type in their keys
-				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, roundType);
+				if (matchedBins.Count == 0)
+				{
+					continue;
+				}
 
 				var binDay = new BinDay
 				{
 					Date = date,
 					Address = address,
-					Bins = [.. matchedBins]
+					Bins = [.. matchedBins],
 				};
 
 				binDays.Add(binDay);

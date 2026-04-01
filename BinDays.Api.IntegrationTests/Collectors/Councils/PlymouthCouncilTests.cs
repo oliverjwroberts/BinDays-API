@@ -20,6 +20,7 @@ public class PlymouthCouncilTests
 
 	[Theory]
 	[InlineData("pl36ag")]
+	[InlineData("pl67aa")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
