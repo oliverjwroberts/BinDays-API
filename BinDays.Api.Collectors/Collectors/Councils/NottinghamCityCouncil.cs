@@ -75,7 +75,7 @@ internal sealed class NottinghamCityCouncil : GovUkCollectorBase, ICollector
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = $"{_apiBaseUrl}/api/areas/{_areaName}/services/{_serviceId}/address-suggest?q={postcode}&locale={_locale}",
+				Url = $"{_apiBaseUrl}/api/areas/{_areaName}/services/{_serviceId}/address-suggest?q={Uri.EscapeDataString(postcode)}&locale={_locale}",
 				Method = "GET",
 			};
 
@@ -155,7 +155,7 @@ internal sealed class NottinghamCityCouncil : GovUkCollectorBase, ICollector
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = $"{_apiBaseUrl}/api/places/{address.Uid!}/services/{_serviceId}/events?locale={_locale}&include_message=email",
+				Url = $"{_apiBaseUrl}/api/places/{address.Uid!}/services/{_serviceId}/events?locale={_locale}",
 				Method = "GET",
 			};
 
@@ -177,7 +177,6 @@ internal sealed class NottinghamCityCouncil : GovUkCollectorBase, ICollector
 			foreach (var rawEvent in rawEvents.EnumerateArray())
 			{
 				var matchingBins = new List<Bin>();
-				var seenBinNames = new HashSet<string>();
 
 				// Iterate through each event flag, and map it to bins
 				foreach (var rawFlag in rawEvent.GetProperty("flags").EnumerateArray())
@@ -187,21 +186,8 @@ internal sealed class NottinghamCityCouncil : GovUkCollectorBase, ICollector
 						continue;
 					}
 
-					var matchedBins = ProcessingUtilities.GetMatchingBins(
-						_binTypes,
-						rawFlag.GetProperty("name").GetString()!
-					);
-
-					// Iterate through each matched bin, and deduplicate by bin name
-					foreach (var matchedBin in matchedBins)
-					{
-						if (!seenBinNames.Add(matchedBin.Name))
-						{
-							continue;
-						}
-
-						matchingBins.Add(matchedBin);
-					}
+					var flagName = rawFlag.GetProperty("name").GetString()!;
+					matchingBins.AddRange(ProcessingUtilities.GetMatchingBins(_binTypes, flagName));
 				}
 
 				if (matchingBins.Count == 0)
