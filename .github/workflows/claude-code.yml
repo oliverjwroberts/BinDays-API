@@ -42,6 +42,8 @@ jobs:
           github_token: ${{ steps.generate-token.outputs.token }}
           trigger_phrase: "@claude"
           include_fix_links: true
+          show_full_output: true
+          display_report: true
           plugin_marketplaces: |
             https://github.com/anthropics/claude-code.git
           plugins: |
@@ -50,3 +52,4 @@ jobs:
           claude_args: |
             --model claude-sonnet-4-6
             --dangerously-skip-permissions
+            --verbose
