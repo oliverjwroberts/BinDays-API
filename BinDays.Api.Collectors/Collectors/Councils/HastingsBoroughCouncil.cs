@@ -57,7 +57,7 @@ internal sealed partial class HastingsBoroughCouncil : GovUkCollectorBase, IColl
 	/// <summary>
 	/// The base URL for the Hastings collection days web service.
 	/// </summary>
-	private const string _serviceBaseUrl = "https://el.hastings.gov.uk/MyArea/CollectionDays.asmx";
+	private const string _serviceBaseUrl = "https://el2.hastings.gov.uk/MyArea/CollectionDays.asmx";
 
 	/// <summary>
 	/// Regex for parsing the Unix timestamp from a /Date(…)/ formatted JSON date string.
