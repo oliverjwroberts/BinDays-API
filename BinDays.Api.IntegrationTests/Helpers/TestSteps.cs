@@ -35,7 +35,9 @@ internal static class TestSteps
 			{
 				if (attempt > 1)
 				{
-					outputHelper.WriteLine($"[Retry {attempt - 1}/{retries}]");
+					var delay = TimeSpan.FromSeconds(2) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 3000));
+					outputHelper.WriteLine($"[Retry {attempt - 1}/{retries}] Waiting {delay.TotalSeconds:F1}s...");
+					await Task.Delay(delay);
 				}
 
 				// Step 1: Get Collector
