@@ -130,5 +130,5 @@ jobs:
           curl -s -X PATCH \
             -H "Authorization: Bearer $GIST_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"files\":{\"integration-tests.json\":{\"content\":$(cat badge.json)}}}" \
+            -d "$(jq -n --rawfile content badge.json '{files: {"integration-tests.json": {content: $content}}}')" \
             "https://api.github.com/gists/$GIST_ID"
