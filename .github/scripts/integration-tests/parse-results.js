@@ -92,12 +92,21 @@ module.exports = async ({ core }) => {
         ].filter(Boolean).join('\n') || 'Test failed';
       }
 
-      results.set(councilName, {
-        passed,
-        skipped,
-        duration,
-        message: failureMessage,
-      });
+      // Worst-case wins: failed (2) > skipped (1) > passed (0)
+      const rank = passed ? 0 : skipped ? 1 : 2;
+      const existing = results.get(councilName);
+      const existingRank = existing ? (existing.passed ? 0 : existing.skipped ? 1 : 2) : -1;
+
+      if (rank > existingRank) {
+        results.set(councilName, {
+          passed,
+          skipped,
+          duration: Math.max(duration, existing?.duration ?? 0),
+          message: failureMessage,
+        });
+      } else if (existing) {
+        existing.duration = Math.max(existing.duration, duration);
+      }
     }
 
     return results;
