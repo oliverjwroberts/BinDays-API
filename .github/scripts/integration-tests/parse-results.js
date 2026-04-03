@@ -25,6 +25,16 @@ module.exports = async ({ core }) => {
     return m ? m[1] : null;
   }
 
+  /** Unescape XML/HTML entities in a string. */
+  function unescapeXml(str) {
+    return str
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&');
+  }
+
   function parseTrx(trxPath) {
     const xml = fs.readFileSync(trxPath, 'utf8');
     const results = new Map();
@@ -56,6 +66,7 @@ module.exports = async ({ core }) => {
       const durationStr = attr(openTag, 'duration');
 
       if (!testId || !outcome) continue;
+      if (outcome === 'NotExecuted') continue;
 
       const fullClassName = classMap.get(testId);
       if (!fullClassName) continue;
@@ -66,7 +77,7 @@ module.exports = async ({ core }) => {
       // Parse duration (TimeSpan format: HH:MM:SS.fffffff)
       const durParts = (durationStr || '0:0:0').split(':');
       const duration = durParts.length === 3
-        ? parseInt(durParts[0]) * 3600 + parseInt(durParts[1]) * 60 + parseFloat(durParts[2])
+        ? parseInt(durParts[0], 10) * 3600 + parseInt(durParts[1], 10) * 60 + parseFloat(durParts[2])
         : 0;
 
       const passed = outcome === 'Passed';
@@ -77,8 +88,8 @@ module.exports = async ({ core }) => {
         const msgMatch = element.match(/<Message>([\s\S]*?)<\/Message>/);
         const traceMatch = element.match(/<StackTrace>([\s\S]*?)<\/StackTrace>/);
         failureMessage = [
-          msgMatch ? msgMatch[1].trim() : null,
-          traceMatch ? traceMatch[1].trim() : null,
+          msgMatch ? unescapeXml(msgMatch[1].trim()) : null,
+          traceMatch ? unescapeXml(traceMatch[1].trim()) : null,
         ].filter(Boolean).join('\n') || 'Test failed';
       }
 

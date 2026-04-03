@@ -17,7 +17,7 @@
  */
 module.exports = async ({ github, context, core }) => {
   const fs = require('fs');
-  const runId = parseInt(process.env.WORKFLOW_RUN_ID);
+  const runId = parseInt(process.env.WORKFLOW_RUN_ID, 10);
   const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
   if (!fs.existsSync('test-results.json')) {
