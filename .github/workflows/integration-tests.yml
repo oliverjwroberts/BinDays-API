@@ -103,7 +103,9 @@ jobs:
               const outcome = tag.match(/outcome=\"([^\"]*)\"/);
               const name = tag.match(/testName=\"([^\"]*)\"/);
               if (outcome && outcome[1] === 'Failed' && name) {
-                failures.add('FullyQualifiedName~' + name[1]);
+                const fullName = name[1].split('(')[0];
+                const className = fullName.substring(0, fullName.lastIndexOf('.'));
+                failures.add('FullyQualifiedName~' + className);
               }
             }
             console.log([...failures].join('|'));
