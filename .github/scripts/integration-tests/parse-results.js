@@ -146,12 +146,21 @@ module.exports = async ({ core }) => {
   // Write job summary
   let summary = '## Integration Test Results\n\n';
   summary += `**${passed.length}** passed, **${failed.length}** failed\n\n`;
-  summary += '| Council | Status | Duration |\n|---------|--------|----------|\n';
 
-  for (const [council, result] of [...merged].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const status = result.passed ? ':white_check_mark: Pass' : ':x: Fail';
-    const dur = `${result.duration.toFixed(1)}s`;
-    summary += `| ${council} | ${status} | ${dur} |\n`;
+  if (failed.length > 0) {
+    summary += '### Failed\n\n';
+    summary += '| Council | Duration |\n|---------|----------|\n';
+    for (const result of failed) {
+      summary += `| ${result.name} | ${result.duration.toFixed(1)}s |\n`;
+    }
+    summary += '\n';
+  }
+
+  summary += '### Passed\n\n';
+  summary += '| Council | Duration |\n|---------|----------|\n';
+  for (const council of passed) {
+    const dur = merged.get(council).duration.toFixed(1);
+    summary += `| ${council} | ${dur}s |\n`;
   }
 
   if (retry.size > 0) {
