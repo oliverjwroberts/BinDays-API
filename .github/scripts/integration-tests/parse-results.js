@@ -151,4 +151,13 @@ module.exports = async ({ core }) => {
   }
 
   await core.summary.addRaw(summary).write();
+
+  // Write badge JSON (shields.io endpoint format)
+  const badge = {
+    schemaVersion: 1,
+    label: 'Integration Tests',
+    message: `${passed.length} passed, ${failed.length} failed`,
+    color: failed.length === 0 ? 'brightgreen' : 'red',
+  };
+  fs.writeFileSync('badge.json', JSON.stringify(badge));
 };

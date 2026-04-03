@@ -21,7 +21,7 @@ on:
 
 permissions:
   checks: write
-  contents: read
+  contents: write
 
 jobs:
   run_tests:
@@ -112,4 +112,20 @@ jobs:
           name: Council Test Results
           path: TestResults/results.trx
           reporter: dotnet-trx
-          fail-on-error: false
+
+      - name: Update test badge
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code origin badges; then
+            git fetch origin badges
+            git worktree add /tmp/badges origin/badges
+          else
+            git worktree add --orphan /tmp/badges badges
+          fi
+          cp badge.json /tmp/badges/integration-tests.json
+          cd /tmp/badges
+          git add integration-tests.json
+          git diff --cached --quiet || git commit -m "Update integration test badge [skip ci]"
+          git push origin HEAD:badges
