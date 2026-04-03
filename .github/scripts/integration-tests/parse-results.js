@@ -78,12 +78,13 @@ module.exports = async ({ core }) => {
         ? parseInt(durParts[0], 10) * 3600 + parseInt(durParts[1], 10) * 60 + parseFloat(durParts[2])
         : 0;
 
+      if (outcome === 'NotExecuted') continue;
+
       const passed = outcome === 'Passed';
-      const skipped = outcome === 'NotExecuted';
 
       // Extract error message for failed tests
       let failureMessage = null;
-      if (!passed && !skipped) {
+      if (!passed) {
         const msgMatch = element.match(/<Message>([\s\S]*?)<\/Message>/);
         const traceMatch = element.match(/<StackTrace>([\s\S]*?)<\/StackTrace>/);
         failureMessage = [
@@ -92,15 +93,12 @@ module.exports = async ({ core }) => {
         ].filter(Boolean).join('\n') || 'Test failed';
       }
 
-      // Worst-case wins: failed (2) > skipped (1) > passed (0)
-      const rank = passed ? 0 : skipped ? 1 : 2;
+      // Worst-case wins: failed beats passed
       const existing = results.get(councilName);
-      const existingRank = existing ? (existing.passed ? 0 : existing.skipped ? 1 : 2) : -1;
 
-      if (rank > existingRank) {
+      if (!existing || (!passed && existing.passed)) {
         results.set(councilName, {
           passed,
-          skipped,
           duration: Math.max(duration, existing?.duration ?? 0),
           message: failureMessage,
         });
@@ -123,13 +121,10 @@ module.exports = async ({ core }) => {
   // Build structured output
   const passed = [];
   const failed = [];
-  const skipped = [];
 
   for (const [council, result] of [...merged].sort((a, b) => a[0].localeCompare(b[0]))) {
     if (result.passed) {
       passed.push(council);
-    } else if (result.skipped) {
-      skipped.push(council);
     } else {
       failed.push({
         name: council,
@@ -139,28 +134,19 @@ module.exports = async ({ core }) => {
     }
   }
 
-  const output = { passed, failed, skipped };
+  const output = { passed, failed };
   fs.writeFileSync('test-results.json', JSON.stringify(output, null, 2));
-  core.info(`Results: ${passed.length} passed, ${failed.length} failed, ${skipped.length} skipped`);
+  core.info(`Results: ${passed.length} passed, ${failed.length} failed`);
 
   // Write job summary
   let summary = '## Integration Test Results\n\n';
-  summary += `**${passed.length}** passed, **${failed.length}** failed, **${skipped.length}** skipped\n\n`;
+  summary += `**${passed.length}** passed, **${failed.length}** failed\n\n`;
 
   if (failed.length > 0) {
     summary += '### Failed\n\n';
     summary += '| Council | Duration |\n|---------|----------|\n';
     for (const result of failed) {
       summary += `| ${result.name} | ${result.duration.toFixed(1)}s |\n`;
-    }
-    summary += '\n';
-  }
-
-  if (skipped.length > 0) {
-    summary += '### Skipped\n\n';
-    summary += '| Council |\n|---------|\n';
-    for (const council of skipped) {
-      summary += `| ${council} |\n`;
     }
     summary += '\n';
   }
@@ -175,14 +161,11 @@ module.exports = async ({ core }) => {
   await core.summary.addRaw(summary).write();
 
   // Write badge JSON (shields.io endpoint format)
-  const badgeMessage = skipped.length > 0
-    ? `${passed.length} passed, ${failed.length} failed, ${skipped.length} skipped`
-    : `${passed.length} passed, ${failed.length} failed`;
   const badge = {
     schemaVersion: 1,
     label: 'Integration Tests',
-    message: badgeMessage,
-    color: failed.length > 0 ? 'red' : skipped.length > 0 ? 'yellow' : 'brightgreen',
+    message: `${passed.length} passed, ${failed.length} failed`,
+    color: failed.length === 0 ? 'brightgreen' : 'red',
   };
   fs.writeFileSync('badge.json', JSON.stringify(badge));
 };
