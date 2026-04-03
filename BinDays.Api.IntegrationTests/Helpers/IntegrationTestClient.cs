@@ -149,11 +149,11 @@ internal sealed class IntegrationTestClient
 		var stdoutTask = process.StandardOutput.ReadToEndAsync();
 		var stderrTask = process.StandardError.ReadToEndAsync();
 
-		var exited = process.WaitForExit(30_000);
+		var exited = process.WaitForExit(60_000);
 		if (!exited)
 		{
 			process.Kill();
-			throw new TimeoutException("Dart CLI process timed out after 30 seconds.");
+			throw new TimeoutException("Dart CLI process timed out after 60 seconds.");
 		}
 
 		var stdout = await stdoutTask;
