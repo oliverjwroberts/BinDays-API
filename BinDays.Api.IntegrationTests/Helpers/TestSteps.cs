@@ -35,7 +35,7 @@ internal static class TestSteps
 			{
 				if (attempt > 1)
 				{
-					var delay = TimeSpan.FromSeconds(2) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 3000));
+					var delay = TimeSpan.FromSeconds(5) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 10000));
 					outputHelper.WriteLine($"[Retry {attempt - 1}/{retries}] Waiting {delay.TotalSeconds:F1}s...");
 					await Task.Delay(delay);
 				}
