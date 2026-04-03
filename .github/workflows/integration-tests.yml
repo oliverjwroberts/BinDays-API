@@ -118,14 +118,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          BLOB=$(git hash-object -w badge.json)
+          TREE=$(printf '100644 blob %s\tintegration-tests.json\n' "$BLOB" | git mktree)
           if git ls-remote --exit-code origin badges; then
-            git fetch origin badges
-            git worktree add /tmp/badges origin/badges
+            git fetch origin badges:refs/remotes/origin/badges
+            COMMIT=$(git commit-tree "$TREE" -p refs/remotes/origin/badges -m "Update integration test badge [skip ci]")
           else
-            git worktree add --orphan /tmp/badges badges
+            COMMIT=$(git commit-tree "$TREE" -m "Add integration test badge [skip ci]")
           fi
-          cp badge.json /tmp/badges/integration-tests.json
-          cd /tmp/badges
-          git add integration-tests.json
-          git diff --cached --quiet || git commit -m "Update integration test badge [skip ci]"
-          git push origin HEAD:badges
+          git push origin "$COMMIT:refs/heads/badges"
