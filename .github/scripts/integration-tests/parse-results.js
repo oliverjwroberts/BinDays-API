@@ -17,7 +17,6 @@ module.exports = async ({ core }) => {
 
   const resultsDir = 'TestResults';
   const primaryFile = path.join(resultsDir, 'results.trx');
-  const retryFile = path.join(resultsDir, 'retry-results.trx');
 
   /** Extract a named XML attribute value from a tag string. */
   function attr(tag, name) {
@@ -108,20 +107,8 @@ module.exports = async ({ core }) => {
     return;
   }
 
-  const primary = parseTrx(primaryFile);
-  core.info(`Primary results: ${primary.size} test(s)`);
-
-  // Merge retry results if they exist (retry overrides primary)
-  let retry = new Map();
-  if (fs.existsSync(retryFile)) {
-    retry = parseTrx(retryFile);
-    core.info(`Retry results: ${retry.size} test(s)`);
-  }
-
-  const merged = new Map(primary);
-  for (const [council, result] of retry) {
-    merged.set(council, result);
-  }
+  const merged = parseTrx(primaryFile);
+  core.info(`Results: ${merged.size} test(s)`);
 
   // Build structured output
   const passed = [];
@@ -161,11 +148,6 @@ module.exports = async ({ core }) => {
   for (const council of passed) {
     const dur = merged.get(council).duration.toFixed(1);
     summary += `| ${council} | ${dur}s |\n`;
-  }
-
-  if (retry.size > 0) {
-    const retriedNames = [...retry.keys()].sort().join(', ');
-    summary += `\n_Retried: ${retriedNames}_\n`;
   }
 
   await core.summary.addRaw(summary).write();

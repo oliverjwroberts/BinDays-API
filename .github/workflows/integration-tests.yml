@@ -74,8 +74,9 @@ jobs:
           echo "filter=$FILTER" >> $GITHUB_OUTPUT
 
       - name: Run integration tests
-        id: test
         continue-on-error: true
+        env:
+          BINDAYS_TEST_RETRIES: 1
         run: |
           FILTER="${{ steps.filter.outputs.filter }}"
           FILTER_ARG=""
@@ -87,38 +88,6 @@ jobs:
             --logger "console;verbosity=detailed" \
             --results-directory TestResults \
             BinDays.Api.IntegrationTests/BinDays.Api.IntegrationTests.csproj
-
-      - name: Retry failed tests
-        if: steps.test.outcome == 'failure'
-        id: retry
-        continue-on-error: true
-        run: |
-          # Extract failed test classes from TRX and retry only those
-          FAILED=$(node -e "
-            const fs = require('fs');
-            const xml = fs.readFileSync('TestResults/results.trx', 'utf8');
-            const failures = new Set();
-            const tags = xml.match(/<UnitTestResult\b[^>]*>/g) || [];
-            for (const tag of tags) {
-              const outcome = tag.match(/outcome=\"([^\"]*)\"/);
-              const name = tag.match(/testName=\"([^\"]*)\"/);
-              if (outcome && outcome[1] === 'Failed' && name) {
-                const fullName = name[1].split('(')[0];
-                const className = fullName.substring(0, fullName.lastIndexOf('.'));
-                failures.add('FullyQualifiedName~' + className);
-              }
-            }
-            console.log([...failures].join('|'));
-          ")
-
-          if [[ -n "$FAILED" ]]; then
-            echo "Retrying failed tests: $FAILED"
-            dotnet test --filter "$FAILED" \
-              --logger "trx;LogFileName=retry-results.trx" \
-              --logger "console;verbosity=detailed" \
-              --results-directory TestResults \
-              BinDays.Api.IntegrationTests/BinDays.Api.IntegrationTests.csproj || true
-          fi
 
       - name: Parse test results
         if: always()

@@ -25,18 +25,41 @@ internal static class TestSteps
 		int addressIndex = 0
 	)
 	{
-		// Step 1: Get Collector
-		var collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
+		var retries = int.TryParse(Environment.GetEnvironmentVariable("BINDAYS_TEST_RETRIES"), out var r) ? r : 0;
+		var maxAttempts = retries + 1;
+		Exception? lastException = null;
 
-		// Step 2: Get Addresses
-		var addresses = await GetAddressesAsync(client, expectedGovUkId, postcode);
-		var selectedAddress = addresses.ElementAt(addressIndex);
+		for (var attempt = 1; attempt <= maxAttempts; attempt++)
+		{
+			try
+			{
+				if (attempt > 1)
+				{
+					outputHelper.WriteLine($"[Retry {attempt - 1}/{retries}]");
+				}
 
-		// Step 3: Get Bin Days
-		var binDays = await GetBinDaysAsync(client, expectedGovUkId, postcode, selectedAddress.Uid!);
+				// Step 1: Get Collector
+				var collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
 
-		// Step 4: Output Summary
-		TestOutput.WriteTestSummary(outputHelper, collector, addresses, binDays);
+				// Step 2: Get Addresses
+				var addresses = await GetAddressesAsync(client, expectedGovUkId, postcode);
+				var selectedAddress = addresses.ElementAt(addressIndex);
+
+				// Step 3: Get Bin Days
+				var binDays = await GetBinDaysAsync(client, expectedGovUkId, postcode, selectedAddress.Uid!);
+
+				// Step 4: Output Summary
+				TestOutput.WriteTestSummary(outputHelper, collector, addresses, binDays);
+				return;
+			}
+			catch (Exception ex) when (attempt < maxAttempts)
+			{
+				lastException = ex;
+				outputHelper.WriteLine($"[Attempt {attempt} failed] {ex.Message}");
+			}
+		}
+
+		throw lastException!;
 	}
 
 	/// <summary>
