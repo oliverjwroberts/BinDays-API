@@ -19,41 +19,20 @@ on:
       - BinDays.Api/**
       - BinDays.Api.Collectors/**
 
+permissions:
+  checks: write
+  contents: read
+
 jobs:
-  discover_councils:
-    name: Discover Council Test Files
-    runs-on: ubuntu-latest
-    outputs:
-      councils_json: ${{ steps.list_councils.outputs.councils_json }}
-    env:
-      # JSON array of council names to skip during test discovery (e.g. '["CouncilA","CouncilB"]').
-      # Empty array means no councils are excluded.
-      EXCLUDED_COUNCILS: "[]"
+  run_tests:
+    name: Integration Tests
+    runs-on: self-hosted
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: List council test file identifiers
-        id: list_councils
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_BASE_REF: ${{ github.base_ref }}
-        run: ./.github/scripts/integration-tests/discover-councils.sh
-
-  run_council_tests:
-    name: Test ${{ matrix.council }}
-    needs: discover_councils
-    runs-on: self-hosted
-    strategy:
-      fail-fast: false
-      matrix:
-        council: ${{ fromJson(needs.discover_councils.outputs.councils_json) }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -66,11 +45,112 @@ jobs:
       - name: Workaround for SSL error on self-hosted runner
         run: ./.github/scripts/integration-tests/ssl-workaround.sh
 
-      - name: Run Integration Tests for ${{ matrix.council }}
-        uses: nick-invision/retry@v3
+      - name: Determine test filter
+        id: filter
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          FILTER=""
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            BASE_REF="origin/$GITHUB_BASE_REF"
+            CHANGED_FILES=$(git diff --name-only "$BASE_REF" HEAD)
+
+            COUNCIL_IMPL_PATTERN="^BinDays\.Api\.Collectors/Collectors/Councils/.*\.cs$"
+            COUNCIL_TEST_PATTERN="^BinDays\.Api\.IntegrationTests/Collectors/Councils/.*Tests\.cs$"
+            NON_COUNCIL_CHANGES=$(echo "$CHANGED_FILES" | grep -vE "$COUNCIL_IMPL_PATTERN|$COUNCIL_TEST_PATTERN" || true)
+
+            if [[ -z "$NON_COUNCIL_CHANGES" && -n "$CHANGED_FILES" ]]; then
+              IMPL_NAMES=$(echo "$CHANGED_FILES" | grep -E "$COUNCIL_IMPL_PATTERN" | sed 's|BinDays.Api.Collectors/Collectors/Councils/||' | sed 's|\.cs$||' || true)
+              TEST_NAMES=$(echo "$CHANGED_FILES" | grep -E "$COUNCIL_TEST_PATTERN" | sed 's|BinDays.Api.IntegrationTests/Collectors/Councils/||' | sed 's|Tests\.cs$||' || true)
+              COUNCILS=$(echo -e "$IMPL_NAMES\n$TEST_NAMES" | sort | uniq | grep -v "^$" || true)
+
+              if [[ -n "$COUNCILS" ]]; then
+                FILTER=$(echo "$COUNCILS" | sed 's/$/Tests/' | sed 's/^/FullyQualifiedName~/' | paste -sd '|')
+                echo "PR optimization: only testing changed councils: $COUNCILS"
+              fi
+            fi
+          fi
+          echo "filter=$FILTER" >> $GITHUB_OUTPUT
+
+      - name: Run integration tests
+        id: test
+        continue-on-error: true
+        run: |
+          FILTER="${{ steps.filter.outputs.filter }}"
+          FILTER_ARG=""
+          if [[ -n "$FILTER" ]]; then
+            FILTER_ARG="--filter $FILTER"
+          fi
+          dotnet test $FILTER_ARG \
+            --logger "trx;LogFileName=results.trx" \
+            --logger "console;verbosity=detailed" \
+            --results-directory TestResults \
+            BinDays.Api.IntegrationTests/BinDays.Api.IntegrationTests.csproj
+
+      - name: Retry failed tests
+        if: steps.test.outcome == 'failure'
+        id: retry
+        continue-on-error: true
+        run: |
+          # Extract failed test classes from TRX and retry only those
+          FAILED=$(node -e "
+            const fs = require('fs');
+            const xml = fs.readFileSync('TestResults/results.trx', 'utf8');
+            const failures = new Set();
+            const tags = xml.match(/<UnitTestResult\b[^>]*>/g) || [];
+            for (const tag of tags) {
+              const outcome = tag.match(/outcome=\"([^\"]*)\"/);
+              const name = tag.match(/testName=\"([^\"]*)\"/);
+              if (outcome && outcome[1] === 'Failed' && name) {
+                failures.add('FullyQualifiedName~' + name[1]);
+              }
+            }
+            console.log([...failures].join('|'));
+          ")
+
+          if [[ -n "$FAILED" ]]; then
+            echo "Retrying failed tests: $FAILED"
+            dotnet test --filter "$FAILED" \
+              --logger "trx;LogFileName=retry-results.trx" \
+              --logger "console;verbosity=detailed" \
+              --results-directory TestResults \
+              BinDays.Api.IntegrationTests/BinDays.Api.IntegrationTests.csproj || true
+          fi
+
+      - name: Parse test results
+        if: always()
+        uses: actions/github-script@v7
         with:
-          timeout_minutes: 5
-          max_attempts: 2
-          command: |
-            echo "Running tests for ${{ matrix.council }}..."
-            dotnet test --filter "FullyQualifiedName~${{ matrix.council }}Tests" --logger "console;verbosity=detailed" BinDays.Api.IntegrationTests/BinDays.Api.IntegrationTests.csproj
+          script: |
+            const script = require('./.github/scripts/integration-tests/parse-results.js');
+            await script({ core });
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.json
+
+      - name: Test report annotations
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Council Test Results
+          path: TestResults/*.trx
+          reporter: dotnet-trx
+
+      - name: Fail if tests failed
+        if: always()
+        run: |
+          if [[ -f test-results.json ]]; then
+            FAILED=$(node -e "const r = JSON.parse(require('fs').readFileSync('test-results.json','utf8')); console.log(r.failed.length)")
+            if [[ "$FAILED" != "0" ]]; then
+              echo "::error::$FAILED council(s) failed integration tests"
+              exit 1
+            fi
+          else
+            echo "::error::Test results file not found"
+            exit 1
+          fi
