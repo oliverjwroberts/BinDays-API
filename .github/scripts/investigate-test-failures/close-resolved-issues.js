@@ -2,9 +2,10 @@
  * Close collector-broken issues (and their associated PRs) for councils
  * whose tests now pass.
  *
- * Lists jobs from the triggering workflow run, identifies councils that
- * passed, and closes any matching open "collector-broken" issues along
- * with any open pull requests that reference those issues.
+ * Reads the test-results.json artifact (downloaded by a prior workflow step)
+ * to identify passing councils, then closes any matching open
+ * "collector-broken" issues along with any open pull requests that
+ * reference those issues.
  *
  * Required environment variables:
  *   WORKFLOW_RUN_ID - The ID of the triggering workflow run
@@ -14,30 +15,18 @@
  * @param {Object} core - GitHub Actions core utilities
  */
 module.exports = async ({ github, context, core }) => {
-  const runId = parseInt(process.env.WORKFLOW_RUN_ID);
+  const fs = require('fs');
+  const runId = parseInt(process.env.WORKFLOW_RUN_ID, 10);
   const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
-  // List all jobs for the triggering workflow run
-  const jobs = [];
-  for (let page = 1; ; page++) {
-    const { data } = await github.rest.actions.listJobsForWorkflowRun({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      run_id: runId,
-      per_page: 100,
-      page,
-    });
-    jobs.push(...data.jobs);
-    if (jobs.length >= data.total_count) break;
+  if (!fs.existsSync('test-results.json')) {
+    core.info('No test-results.json found — artifact may not have been uploaded');
+    return;
   }
 
-  // Find councils whose tests passed
-  const passingCouncils = new Set(
-    jobs
-      .filter(job => job.conclusion === 'success' && job.name.startsWith('Test '))
-      .map(job => job.name.replace(/^Test /, ''))
-  );
+  const results = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
 
+  const passingCouncils = new Set(results.passed);
   core.info(`Found ${passingCouncils.size} passing council(s)`);
 
   if (passingCouncils.size === 0) {
