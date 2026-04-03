@@ -52,24 +52,42 @@ module.exports = async ({ core }) => {
         classMap.set(id, className);
       }
     }
+    core.info(`classMap: ${classMap.size} entries`);
 
     // Parse UnitTestResult elements (attributes may appear in any order)
     const resultRe = /<UnitTestResult\b[^>]*(?:\/>|>[\s\S]*?<\/UnitTestResult>)/g;
     let resMatch;
+    let unmatchedCount = 0;
     while ((resMatch = resultRe.exec(xml)) !== null) {
       const element = resMatch[0];
       const openTag = element.match(/<UnitTestResult\b[^>]*/)[0];
 
       const testId = attr(openTag, 'testId');
+      const testName = attr(openTag, 'testName');
       const outcome = attr(openTag, 'outcome');
       const durationStr = attr(openTag, 'duration');
 
-      if (!testId || !outcome) continue;
+      if (!outcome || outcome === 'NotExecuted') continue;
 
-      const fullClassName = classMap.get(testId);
-      if (!fullClassName) continue;
+      // Resolve class name: prefer classMap lookup, fall back to parsing testName.
+      // testName format is typically "ClassName.MethodName(params)".
+      let simpleClassName;
+      const fullClassName = testId ? classMap.get(testId) : null;
+      if (fullClassName) {
+        simpleClassName = fullClassName.split('.').pop();
+      } else {
+        const dotIdx = testName ? testName.indexOf('.') : -1;
+        const candidate = dotIdx > 0 ? testName.substring(0, dotIdx) : null;
+        if (candidate?.endsWith('Tests')) {
+          simpleClassName = candidate;
+        } else {
+          unmatchedCount++;
+          core.warning(`No class mapping for testId=${testId}, testName=${testName}`);
+          continue;
+        }
+      }
 
-      const className = fullClassName.split('.').pop();
+      const className = simpleClassName;
       const councilName = className.replace(/Tests$/, '');
 
       // Parse duration (TimeSpan format: HH:MM:SS.fffffff)
@@ -77,8 +95,6 @@ module.exports = async ({ core }) => {
       const duration = durParts.length === 3
         ? parseInt(durParts[0], 10) * 3600 + parseInt(durParts[1], 10) * 60 + parseFloat(durParts[2])
         : 0;
-
-      if (outcome === 'NotExecuted') continue;
 
       const passed = outcome === 'Passed';
 
@@ -107,6 +123,9 @@ module.exports = async ({ core }) => {
       }
     }
 
+    if (unmatchedCount > 0) {
+      core.warning(`${unmatchedCount} test result(s) had no class mapping`);
+    }
     return results;
   }
 
