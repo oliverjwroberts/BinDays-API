@@ -115,6 +115,7 @@ jobs:
     if: github.event.workflow_run.event == 'schedule'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: write
       pull-requests: write
       actions: read

@@ -132,13 +132,14 @@ jobs:
         with:
           name: test-results
           path: test-results.json
+          retention-days: 7
 
       - name: Test report annotations
         if: always()
         uses: dorny/test-reporter@v1
         with:
           name: Council Test Results
-          path: TestResults/*.trx
+          path: TestResults/results.trx
           reporter: dotnet-trx
 
       - name: Fail if tests failed
