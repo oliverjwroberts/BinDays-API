@@ -36,13 +36,13 @@ internal abstract partial class FccCollectorBase : GovUkCollectorBase
 	private static partial Regex SessionTokenRegex();
 
 	/// <summary>
-	/// Regex for the title within <h3> tags.
+	/// Regex for the title within &lt;h3&gt; tags.
 	/// </summary>
 	[GeneratedRegex(@"<h3.*?>\s*(.*?)\s*</h3>")]
 	private static partial Regex ServiceRegex();
 
 	/// <summary>
-	/// Regex for the date following specific text and within <b> tags.
+	/// Regex for the date following specific text and within &lt;b&gt; tags.
 	/// </summary>
 	[GeneratedRegex(@"Your next scheduled collection is\s*<b>\s*(.*?)\s*</b>")]
 	private static partial Regex DateRegex();

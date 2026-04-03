@@ -22,6 +22,9 @@ public sealed class BinDaysNotFoundException : Exception
 	/// </summary>
 	public string Uid { get; }
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="BinDaysNotFoundException"/> class.
+	/// </summary>
 	public BinDaysNotFoundException(string govUkId, string postcode, string uid)
 		: base($"No bin days found for gov.uk ID: {govUkId}, postcode: {postcode}, UID: {uid}")
 	{
