@@ -71,29 +71,27 @@ module.exports = async ({ core }) => {
 
       if (!outcome || outcome === 'NotExecuted') continue;
 
-      // Resolve class name: prefer classMap lookup, fall back to parsing testName.
-      // testName format is typically "ClassName.MethodName(params)".
-      let simpleClassName;
-      const fullClassName = testId ? classMap.get(testId) : null;
-      if (fullClassName) {
-        simpleClassName = fullClassName.split('.').pop();
-      } else {
+      // Resolve fully-qualified class name: prefer classMap lookup, fall back to testName.
+      // Only include council tests (namespace contains .Collectors.Councils.).
+      const COUNCIL_NS = '.Collectors.Councils.';
+      let fqn = testId ? classMap.get(testId) : null;
+      if (!fqn) {
         // testName is fully qualified: "Ns.Ns.ClassName.MethodName(params)"
-        // Find the segment ending with "Tests" as the class name.
-        const candidate = testName
-          ? testName.split('.').find(p => p.endsWith('Tests')) ?? null
-          : null;
-        if (candidate) {
-          simpleClassName = candidate;
-        } else {
-          unmatchedCount++;
-          core.warning(`No class mapping for testId=${testId}, testName=${testName}`);
-          continue;
+        // Reconstruct fqn from segments up to and including the Tests class.
+        if (testName) {
+          const parts = testName.split('.');
+          const classIdx = parts.findIndex(p => p.endsWith('Tests'));
+          if (classIdx >= 0) fqn = parts.slice(0, classIdx + 1).join('.');
         }
       }
+      if (!fqn) {
+        unmatchedCount++;
+        core.warning(`No class mapping for testId=${testId}, testName=${testName}`);
+        continue;
+      }
+      if (!fqn.includes(COUNCIL_NS)) continue; // skip non-council test classes
 
-      const className = simpleClassName;
-      const councilName = className.replace(/Tests$/, '');
+      const councilName = fqn.split('.').pop().replace(/Tests$/, '');
 
       // Parse duration (TimeSpan format: HH:MM:SS.fffffff)
       const durParts = (durationStr || '0:0:0').split(':');
