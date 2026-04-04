@@ -54,8 +54,10 @@ module.exports = async ({ core }) => {
     }
     core.info(`classMap: ${classMap.size} entries`);
 
-    // Parse UnitTestResult elements (attributes may appear in any order)
-    const resultRe = /<UnitTestResult\b[^>]*(?:\/>|>[\s\S]*?<\/UnitTestResult>)/g;
+    // Parse UnitTestResult elements (attributes may appear in any order).
+    // Use (?:[^/>]|\/(?!>))* instead of [^>]* so the trailing / of a self-closing
+    // tag is not consumed before the \/>|> alternation is attempted.
+    const resultRe = /<UnitTestResult\b(?:[^/>]|\/(?!>))*(?:\/>|>[\s\S]*?<\/UnitTestResult>)/g;
     let resMatch;
     let unmatchedCount = 0;
     while ((resMatch = resultRe.exec(xml)) !== null) {
@@ -76,9 +78,12 @@ module.exports = async ({ core }) => {
       if (fullClassName) {
         simpleClassName = fullClassName.split('.').pop();
       } else {
-        const dotIdx = testName ? testName.indexOf('.') : -1;
-        const candidate = dotIdx > 0 ? testName.substring(0, dotIdx) : null;
-        if (candidate?.endsWith('Tests')) {
+        // testName is fully qualified: "Ns.Ns.ClassName.MethodName(params)"
+        // Find the segment ending with "Tests" as the class name.
+        const candidate = testName
+          ? testName.split('.').find(p => p.endsWith('Tests')) ?? null
+          : null;
+        if (candidate) {
           simpleClassName = candidate;
         } else {
           unmatchedCount++;
