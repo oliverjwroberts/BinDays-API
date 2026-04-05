@@ -24,6 +24,12 @@
   <ItemGroup>
     <ProjectReference Include="..\BinDays.Api\BinDays.Api.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
   <!--
     Dart CLI wrapper for integration tests. Compiles DartClient/bin/send_request.dart into a
     native executable that uses the real BinDays-Client Dio HTTP client to execute client-side

@@ -22,46 +22,64 @@ internal static class TestSteps
 		string postcode,
 		string expectedGovUkId,
 		ITestOutputHelper outputHelper,
-		int addressIndex = 0
-	)
+		int addressIndex = 0)
 	{
 		var retries = int.TryParse(Environment.GetEnvironmentVariable("BINDAYS_TEST_RETRIES"), out var r) ? r : 0;
-		var maxAttempts = retries + 1;
-		Exception? lastException = null;
 
-		for (var attempt = 1; attempt <= maxAttempts; attempt++)
+		await EndToEndAsync(
+			client,
+			postcode,
+			expectedGovUkId,
+			outputHelper,
+			addressIndex,
+			retries
+		);
+	}
+
+	/// <summary>
+	/// Executes the end-to-end test cycle, retrying up to <paramref name="retriesRemaining"/> times on failure.
+	/// </summary>
+	private static async Task EndToEndAsync(
+		IntegrationTestClient client,
+		string postcode,
+		string expectedGovUkId,
+		ITestOutputHelper outputHelper,
+		int addressIndex,
+		int retriesRemaining)
+	{
+		try
 		{
-			try
-			{
-				if (attempt > 1)
-				{
-					var delay = TimeSpan.FromSeconds(5) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 10000));
-					outputHelper.WriteLine($"[Retry {attempt - 1}/{retries}] Waiting {delay.TotalSeconds:F1}s...");
-					await Task.Delay(delay);
-				}
+			// Step 1: Get Collector
+			var collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
 
-				// Step 1: Get Collector
-				var collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
+			// Step 2: Get Addresses
+			var addresses = await GetAddressesAsync(client, expectedGovUkId, postcode);
+			var selectedAddress = addresses.ElementAt(addressIndex);
 
-				// Step 2: Get Addresses
-				var addresses = await GetAddressesAsync(client, expectedGovUkId, postcode);
-				var selectedAddress = addresses.ElementAt(addressIndex);
+			// Step 3: Get Bin Days
+			var binDays = await GetBinDaysAsync(
+				client,
+				expectedGovUkId,
+				postcode,
+				selectedAddress.Uid!
+			);
 
-				// Step 3: Get Bin Days
-				var binDays = await GetBinDaysAsync(client, expectedGovUkId, postcode, selectedAddress.Uid!);
-
-				// Step 4: Output Summary
-				TestOutput.WriteTestSummary(outputHelper, collector, addresses, binDays);
-				return;
-			}
-			catch (Exception ex) when (attempt < maxAttempts)
-			{
-				lastException = ex;
-				outputHelper.WriteLine($"[Attempt {attempt} failed] {ex.Message}");
-			}
+			// Step 4: Output Summary
+			TestOutput.WriteTestSummary(outputHelper, collector, addresses, binDays);
 		}
-
-		throw lastException!;
+		catch (Exception ex) when (retriesRemaining > 0)
+		{
+			outputHelper.WriteLine($"[Retry {retriesRemaining}] {ex.Message}");
+			await Task.Delay(TimeSpan.FromSeconds(5));
+			await EndToEndAsync(
+				client,
+				postcode,
+				expectedGovUkId,
+				outputHelper,
+				addressIndex,
+				retriesRemaining - 1
+			);
+		}
 	}
 
 	/// <summary>
