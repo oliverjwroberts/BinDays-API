@@ -66,7 +66,7 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 	/// <summary>
 	/// Regex for the addresses from the options elements.
 	/// </summary>
-	[GeneratedRegex(@"<option\s+value=""(?<uid>\d+),""[^>]*>\s*(?<address>.*?)\s*</option>")]
+	[GeneratedRegex(@"<option\s+value=""(?<uid>\d+),\d+""[^>]*>\s*(?<address>.*?)\s*</option>")]
 	private static partial Regex AddressesRegex();
 
 	/// <summary>
