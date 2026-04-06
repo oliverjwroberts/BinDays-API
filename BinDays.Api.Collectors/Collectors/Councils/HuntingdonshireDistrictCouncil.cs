@@ -124,7 +124,7 @@ internal sealed class HuntingdonshireDistrictCouncil : GovUkCollectorBase, IColl
 		// Prepare client-side request for getting bin days
 		if (clientSideResponse == null)
 		{
-			var requestUrl = $"https://servicelayer3c.azure-api.net/wastecalendar//calendar/ical/{address.Uid!}?authority={_authority}";
+			var requestUrl = $"https://servicelayer3c.azure-api.net/wastecalendar/calendar/ical/{address.Uid!}?authority={_authority}";
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
