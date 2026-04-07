@@ -10,7 +10,7 @@ The file `failure-context.json` in the repository root contains:
 
 - `runId`: the workflow run ID (use this to make branch names unique)
 - `runUrl`: link to the failed GitHub Actions workflow run
-- `failures`: array of objects with `councilName`, `jobUrl`, `logs`, and `needsInvestigation`
+- `failures`: array of objects with `councilName`, `logs`, and `needsInvestigation`
 
 Only process failures where `needsInvestigation` is `true`. Failures marked `false` already have open tracking issues.
 
@@ -51,7 +51,6 @@ For every failure, create a GitHub issue with:
   | Category | {category} |
   | Key error | {key error message} |
   | Workflow run | [{runId}]({runUrl}) |
-  | Job | [{jobId}]({jobUrl}) |
 
   {any additional notes, e.g. pattern across failures}
   ```
@@ -65,7 +64,6 @@ cat > /tmp/issue-body.md << 'EOF'
 | Category | {category} |
 | Key error | {key error message} |
 | Workflow run | [{runId}]({runUrl}) |
-| Job | [{jobId}]({jobUrl}) |
 
 {any additional notes}
 EOF
