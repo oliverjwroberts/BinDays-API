@@ -121,7 +121,7 @@ internal sealed partial class BuckinghamshireCouncil : ITouchVisionCollectorBase
 	/// Regex for parsing bank holiday revision table rows on the council website.
 	/// Matches a pair of table cells: the normal collection date and the revised collection date.
 	/// </summary>
-	[GeneratedRegex(@"<td>\s*\w+ (?<originalDay>\d{1,2}) (?<originalMonth>\w+).*?</td>.*?<td>\s*\w+ (?<revisedDay>\d{1,2}) (?<revisedMonth>\w+)", RegexOptions.Singleline)]
+	[GeneratedRegex(@"<td[^>]*>\s*\w+ (?<originalDay>\d{1,2}) (?<originalMonth>\w+).*?</td>.*?<td[^>]*>\s*\w+ (?<revisedDay>\d{1,2}) (?<revisedMonth>\w+)", RegexOptions.Singleline)]
 	private static partial Regex RevisionTableRegex();
 
 	/// <inheritdoc/>
