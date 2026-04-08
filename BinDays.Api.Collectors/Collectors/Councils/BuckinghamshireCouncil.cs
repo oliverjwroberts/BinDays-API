@@ -208,7 +208,7 @@ internal sealed partial class BuckinghamshireCouncil : ITouchVisionCollectorBase
 
 				binDays.Add(new BinDay
 				{
-					Date = DateOnly.ParseExact(revisedDateStr, "yyyy-MM-dd"),
+					Date = DateUtilities.ParseDateExact(revisedDateStr, "yyyy-MM-dd"),
 					Address = binDay.Address,
 					Bins = binDay.Bins,
 				});
