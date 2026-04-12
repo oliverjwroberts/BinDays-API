@@ -55,7 +55,7 @@ internal sealed partial class BournemouthChristchurchAndPooleCouncil : GovUkColl
 	/// <summary>
 	/// Used for the Address API call.
 	/// </summary>
-	private const string _apiKey = "f5a8f110545e4d009411c908b25b7596";
+	private const string _apiKey = "99eca77b615d046fce9b4e65d27d9c53";
 
 	/// <summary>
 	/// Used for the Bin Day API call
@@ -69,7 +69,7 @@ internal sealed partial class BournemouthChristchurchAndPooleCouncil : GovUkColl
 		if (clientSideResponse == null)
 		{
 			var encodedPostcode = Uri.EscapeDataString(postcode);
-			var requestUrl = $"https://apim-uks-cepprod-int-01.azure-api.net/LLPGSearch?searchText={encodedPostcode}&Subscription-Key={_apiKey}";
+			var requestUrl = $"https://apim-uks-cepprod-int-01.azure-api.net/statmap/bcp_gazetteer/suggest?token={_apiKey}&searchedTerm={encodedPostcode}";
 
 			var clientSideRequest = new ClientSideRequest
 			{
@@ -93,14 +93,14 @@ internal sealed partial class BournemouthChristchurchAndPooleCouncil : GovUkColl
 
 			// Iterate through each address json, and create a new address object
 			var addresses = new List<Address>();
-			var resultsElement = jsonDoc.RootElement.GetProperty("Results");
+			var resultsElement = jsonDoc.RootElement.GetProperty("items");
 			foreach (var addressElement in resultsElement.EnumerateArray())
 			{
 				var address = new Address
 				{
-					Property = addressElement.GetProperty("FULL_ADDRESS").GetString()!.Trim(),
+					Property = addressElement.GetProperty("address").GetString()!.Trim(),
 					Postcode = postcode,
-					Uid = addressElement.GetProperty("UPRN").GetString()!.Trim(),
+					Uid = addressElement.GetProperty("id").GetInt64().ToString(),
 				};
 
 				addresses.Add(address);
@@ -121,14 +121,36 @@ internal sealed partial class BournemouthChristchurchAndPooleCouncil : GovUkColl
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting bin days
+		// Prepare client-side request for getting address UPRN from detail endpoint
 		if (clientSideResponse == null)
 		{
-			var requestUrl = $"https://prod-17.uksouth.logic.azure.com/workflows/58253d7b7d754447acf9fe5fcf76f493/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig={_signature}";
+			var requestUrl = $"https://apim-uks-cepprod-int-01.azure-api.net/statmap/bcp_gazetteer/{address.Uid}?token={_apiKey}";
 
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
+				Url = requestUrl,
+				Method = "GET",
+			};
+
+			var getBinDaysResponse = new GetBinDaysResponse
+			{
+				NextClientSideRequest = clientSideRequest
+			};
+
+			return getBinDaysResponse;
+		}
+		// Extract UPRN from address detail and prepare bin days request
+		else if (clientSideResponse.RequestId == 1)
+		{
+			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
+			var uprn = jsonDoc.RootElement.GetProperty("UPRN").GetString()!;
+
+			var requestUrl = $"https://prod-17.uksouth.logic.azure.com/workflows/58253d7b7d754447acf9fe5fcf76f493/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig={_signature}";
+
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 2,
 				Url = requestUrl,
 				Method = "POST",
 				Headers = new()
@@ -136,7 +158,7 @@ internal sealed partial class BournemouthChristchurchAndPooleCouncil : GovUkColl
 					{ "user-agent", Constants.UserAgent },
 					{ "content-type", Constants.ApplicationJson },
 				},
-				Body = JsonSerializer.Serialize(new { uprn = address.Uid }),
+				Body = JsonSerializer.Serialize(new { uprn }),
 			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
@@ -147,7 +169,7 @@ internal sealed partial class BournemouthChristchurchAndPooleCouncil : GovUkColl
 			return getBinDaysResponse;
 		}
 		// Process bin days from response
-		else if (clientSideResponse.RequestId == 1)
+		else if (clientSideResponse.RequestId == 2)
 		{
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 
