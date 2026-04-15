@@ -25,8 +25,7 @@ internal sealed partial class CrawleyBoroughCouncil : GovUkCollectorBase, IColle
 	/// <summary>
 	/// The list of bin types for this collector.
 	/// </summary>
-	private readonly IReadOnlyCollection<Bin> _binTypes =
-	[
+	private readonly IReadOnlyCollection<Bin> _binTypes = [
 		new()
 		{
 			Name = "General Waste",
@@ -145,6 +144,7 @@ internal sealed partial class CrawleyBoroughCouncil : GovUkCollectorBase, IColle
 				{
 					Property = addressData.GetProperty("display").GetString()!.Trim(),
 					Postcode = postcode,
+					// Uid format: "uprn;usrn"
 					Uid = $"{uprn};{usrn}",
 				};
 
@@ -186,7 +186,7 @@ internal sealed partial class CrawleyBoroughCouncil : GovUkCollectorBase, IColle
 		else if (clientSideResponse.RequestId == 1)
 		{
 			var (sessionId, cookies) = ExtractSessionData(clientSideResponse);
-			var dayConverted = DateTime.UtcNow.ToString("dd/MM/yyyy");
+			var currentDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/London")).ToString("dd/MM/yyyy");
 
 			var requestBody = $$"""
 			{
@@ -205,7 +205,7 @@ internal sealed partial class CrawleyBoroughCouncil : GovUkCollectorBase, IColle
 							}
 						},
 						"dayConverted": {
-							"value": "{{dayConverted}}"
+							"value": "{{currentDate}}"
 						},
 						"getCollection": {
 							"value": "true"
@@ -244,6 +244,11 @@ internal sealed partial class CrawleyBoroughCouncil : GovUkCollectorBase, IColle
 		{
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var rowsData = GetRowsData(jsonDoc);
+
+			if (rowsData.ValueKind == JsonValueKind.Array)
+			{
+				return new GetBinDaysResponse { BinDays = [] };
+			}
 
 			// Iterate through each bin day row, and create new bin day objects
 			var binDays = new List<BinDay>();
