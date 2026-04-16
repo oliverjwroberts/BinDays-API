@@ -20,14 +20,15 @@ public class CrawleyBoroughCouncilTests
 
 	[Theory]
 	[InlineData("RH106QQ")]
-	[InlineData("RH107LT")]
-	public async Task GetBinDaysTest(string postcode)
+	[InlineData("RH107LT", 31)]
+	public async Task GetBinDaysTest(string postcode, int addressIndex = 0)
 	{
 		await TestSteps.EndToEnd(
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper
+			_outputHelper,
+			addressIndex
 		);
 	}
 }
