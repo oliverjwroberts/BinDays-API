@@ -41,7 +41,7 @@ module.exports = async ({ github, context, core }) => {
 
     // Skip issues with "bot protection" label (council websites with bot detection that
     // prevent automated HTTP requests from succeeding)
-    const hasBotProtection = issue.labels.some(label => label.name === 'bot protection');
+    const hasBotProtection = issue.labels.some(label => label.name.toLowerCase() === 'bot protection');
     if (hasBotProtection) {
       core.info(`  - Skipping: has "bot protection" label`);
       continue;
