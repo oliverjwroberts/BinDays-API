@@ -39,6 +39,14 @@ module.exports = async ({ github, context, core }) => {
   for (const issue of issues) {
     core.info(`Checking issue #${issue.number}: ${issue.title}`);
 
+    // Skip issues with "bot protection" label (council websites with bot detection that
+    // prevent automated HTTP requests from succeeding)
+    const hasBotProtection = issue.labels.some(label => label.name.toLowerCase() === 'bot protection');
+    if (hasBotProtection) {
+      core.info(`  - Skipping: has "bot protection" label`);
+      continue;
+    }
+
     // Check issue was created from the council request template and has required fields filled in
     const body = issue.body || '';
 
