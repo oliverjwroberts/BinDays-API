@@ -64,7 +64,7 @@ internal sealed class DudleyMetropolitanBoroughCouncil : GovUkCollectorBase, ICo
 		// Prepare client-side request for starting the session
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = CreateSessionRequest(1);
+			var clientSideRequest = CreateSessionRequest();
 
 			var getAddressesResponse = new GetAddressesResponse
 			{
@@ -154,7 +154,7 @@ internal sealed class DudleyMetropolitanBoroughCouncil : GovUkCollectorBase, ICo
 		// Prepare client-side request for starting the session
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = CreateSessionRequest(1);
+			var clientSideRequest = CreateSessionRequest();
 
 			var getBinDaysResponse = new GetBinDaysResponse
 			{
@@ -168,16 +168,17 @@ internal sealed class DudleyMetropolitanBoroughCouncil : GovUkCollectorBase, ICo
 		{
 			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
 			var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
+			var uid = address.Uid!;
 
 			var requestBody = $$"""
 			{
 				"formValues": {
 					"Section 1": {
 						"selectAddress": {
-							"value": "{{address.Uid!}}"
+							"value": "{{uid}}"
 						},
 						"uprnToCheck": {
-							"value": "{{address.Uid!}}"
+							"value": "{{uid}}"
 						}
 					}
 				}
@@ -221,7 +222,7 @@ internal sealed class DudleyMetropolitanBoroughCouncil : GovUkCollectorBase, ICo
 				var rowData = row.Value;
 
 				// Iterate through each service date, and create a new bin day object
-				foreach (var serviceDate in new[]
+				foreach (var (service, dateKey) in new (string, string)[]
 				{
 					("Refuse", "refuseDate"),
 					("Recycling", "recyclingDate"),
@@ -229,13 +230,13 @@ internal sealed class DudleyMetropolitanBoroughCouncil : GovUkCollectorBase, ICo
 					("Food Waste", "foodDate"),
 				})
 				{
-					var dateString = rowData.GetProperty(serviceDate.Item2).GetString()!;
+					var dateString = rowData.GetProperty(dateKey).GetString()!;
 					if (string.IsNullOrWhiteSpace(dateString))
 					{
 						continue;
 					}
 
-					var bins = ProcessingUtilities.GetMatchingBins(_binTypes, serviceDate.Item1);
+					var bins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 					var binDay = new BinDay
 					{
 						Date = DateUtilities.ParseDateExact(dateString, "yyyy-MM-dd"),
@@ -261,13 +262,12 @@ internal sealed class DudleyMetropolitanBoroughCouncil : GovUkCollectorBase, ICo
 	/// <summary>
 	/// Creates the initial request required to establish a session.
 	/// </summary>
-	/// <param name="requestId">The request ID.</param>
 	/// <returns>The configured client-side request.</returns>
-	private static ClientSideRequest CreateSessionRequest(int requestId)
+	private static ClientSideRequest CreateSessionRequest()
 	{
 		var clientSideRequest = new ClientSideRequest
 		{
-			RequestId = requestId,
+			RequestId = 1,
 			Url = $"{_baseUrl}/en/service/my-next-collection",
 			Method = "GET",
 		};
