@@ -136,9 +136,9 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 
 				var address = new Address
 				{
-					Property = rowData.GetProperty("display").GetString()!,
+					Property = rowData.GetProperty("display").GetString()!.Trim(),
 					Postcode = postcode,
-					Uid = rowData.GetProperty("uprn").GetString()!,
+					Uid = rowData.GetProperty("uprn").GetString()!.Trim(),
 				};
 
 				addresses.Add(address);
@@ -220,43 +220,27 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 				.GetProperty("transformed")
 				.GetProperty("rows_data");
 
-			var dateMappings = new[]
-			{
-				new
-				{
-					Service = "General Waste",
-					DateKeys = new[] { "nextGeneralWasteCollectionDate", "nextGeneralWasteCollectionDate2nd" },
-				},
-				new
-				{
-					Service = "Paper and Card Recycling",
-					DateKeys = new[] { "nextBlueCollectionDate", "nextBlueWasteCollectionDate2nd" },
-				},
-				new
-				{
-					Service = "Plastic and Cans Recycling",
-					DateKeys = new[] { "nextGreyWasteCollectionDate", "nextGreyWasteCollectionDate2nd" },
-				},
-				new
-				{
-					Service = "Food and Garden Waste",
-					DateKeys = new[] { "nextGardenandFoodWasteCollectionDate", "nextGardenandFoodWasteCollectionDate2nd" },
-				},
-			};
+			(string Service, string[] DateKeys)[] dateMappings =
+			[
+				("General Waste", [ "nextGeneralWasteCollectionDate", "nextGeneralWasteCollectionDate2nd" ]),
+				("Paper and Card Recycling", [ "nextBlueCollectionDate", "nextBlueWasteCollectionDate2nd" ]),
+				("Plastic and Cans Recycling", [ "nextGreyWasteCollectionDate", "nextGreyWasteCollectionDate2nd" ]),
+				("Food and Garden Waste", [ "nextGardenandFoodWasteCollectionDate", "nextGardenandFoodWasteCollectionDate2nd" ]),
+			];
 
-			// Iterate through each response row, and create new bin day objects
+			// Iterate through each configured bin mapping, and create new bin day objects
 			var binDays = new List<BinDay>();
-			foreach (var row in rowsData.EnumerateObject())
+			foreach (var (service, dateKeys) in dateMappings)
 			{
-				var rowData = row.Value;
+				var bins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 
-				// Iterate through each configured bin mapping, and create new bin day objects
-				foreach (var dateMapping in dateMappings)
+				// Iterate through each response row, and create new bin day objects
+				foreach (var row in rowsData.EnumerateObject())
 				{
-					var bins = ProcessingUtilities.GetMatchingBins(_binTypes, dateMapping.Service);
+					var rowData = row.Value;
 
 					// Iterate through each date key, and create a new bin day object
-					foreach (var dateKey in dateMapping.DateKeys)
+					foreach (var dateKey in dateKeys)
 					{
 						var dateString = rowData.GetProperty(dateKey).GetString()!;
 						if (string.IsNullOrWhiteSpace(dateString))
@@ -295,7 +279,7 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		var clientSideRequest = new ClientSideRequest
 		{
 			RequestId = 1,
-			Url = "https://pkc-self.achieveservice.com/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-de9223b1-a7c6-408f-aaa3-aee33fd7f7fa/AF-Stage-9fa33e2e-4c1b-4963-babf-4348ab8154bc/definition.json&redirectlink=%2Fen&cancelRedirectLink=%2Fen&consentMessage=yes",
+			Url = $"{_baseUrl}/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-de9223b1-a7c6-408f-aaa3-aee33fd7f7fa/AF-Stage-9fa33e2e-4c1b-4963-babf-4348ab8154bc/definition.json&consentMessage=yes",
 			Method = "GET",
 		};
 
