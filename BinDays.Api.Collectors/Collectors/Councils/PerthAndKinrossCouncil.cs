@@ -245,7 +245,7 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 					// Iterate through each date key, and create a new bin day object
 					foreach (var dateKey in binType.Keys)
 					{
-						var dateString = row.Value.GetProperty(dateKey).GetString()!;
+						var dateString = row.Value.GetProperty(dateKey).GetString()?.Trim();
 						if (string.IsNullOrWhiteSpace(dateString))
 						{
 							continue;
@@ -273,5 +273,4 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
-
 }
