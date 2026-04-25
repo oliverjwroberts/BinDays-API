@@ -31,25 +31,25 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		{
 			Name = "Non-Recyclable General Waste",
 			Colour = BinColour.Green,
-			Keys = [ "General Waste" ],
+			Keys = [ "nextGeneralWasteCollectionDate", "nextGeneralWasteCollectionDate2nd" ],
 		},
 		new()
 		{
 			Name = "Paper and Card Recycling",
 			Colour = BinColour.Blue,
-			Keys = [ "Paper and Card Recycling" ],
+			Keys = [ "nextBlueCollectionDate", "nextBlueWasteCollectionDate2nd" ],
 		},
 		new()
 		{
 			Name = "Plastic, Soft Plastics, Cans, Cartons and Foil Recycling",
 			Colour = BinColour.Grey,
-			Keys = [ "Plastic and Cans Recycling" ],
+			Keys = [ "nextGreyWasteCollectionDate", "nextGreyWasteCollectionDate2nd" ],
 		},
 		new()
 		{
 			Name = "Food and Garden Waste",
 			Colour = BinColour.Brown,
-			Keys = [ "Food and Garden Waste" ],
+			Keys = [ "nextGardenandFoodWasteCollectionDate", "nextGardenandFoodWasteCollectionDate2nd" ],
 		},
 	];
 
@@ -57,6 +57,11 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 	/// The base URL for the Perth and Kinross AchieveService API.
 	/// </summary>
 	private const string _baseUrl = "https://pkc-self.achieveservice.com";
+
+	/// <summary>
+	/// The session initialization URL for the AchieveService form.
+	/// </summary>
+	private const string _sessionUrl = _baseUrl + "/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-de9223b1-a7c6-408f-aaa3-aee33fd7f7fa/AF-Stage-9fa33e2e-4c1b-4963-babf-4348ab8154bc/definition.json&consentMessage=yes";
 
 	/// <summary>
 	/// Regex to extract the session ID from the form page content.
@@ -70,7 +75,12 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		// Prepare client-side request for starting the session
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = CreateSessionRequest();
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 1,
+				Url = _sessionUrl,
+				Method = "GET",
+			};
 
 			var getAddressesResponse = new GetAddressesResponse
 			{
@@ -161,7 +171,12 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		// Prepare client-side request for starting the session
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = CreateSessionRequest();
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 1,
+				Url = _sessionUrl,
+				Method = "GET",
+			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
 			{
@@ -220,29 +235,17 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 				.GetProperty("transformed")
 				.GetProperty("rows_data");
 
-			(string Service, string[] DateKeys)[] dateMappings =
-			[
-				("General Waste", [ "nextGeneralWasteCollectionDate", "nextGeneralWasteCollectionDate2nd" ]),
-				("Paper and Card Recycling", [ "nextBlueCollectionDate", "nextBlueWasteCollectionDate2nd" ]),
-				("Plastic and Cans Recycling", [ "nextGreyWasteCollectionDate", "nextGreyWasteCollectionDate2nd" ]),
-				("Food and Garden Waste", [ "nextGardenandFoodWasteCollectionDate", "nextGardenandFoodWasteCollectionDate2nd" ]),
-			];
-
-			// Iterate through each configured bin mapping, and create new bin day objects
+			// Iterate through each configured bin type, and create new bin day objects
 			var binDays = new List<BinDay>();
-			foreach (var (service, dateKeys) in dateMappings)
+			foreach (var binType in _binTypes)
 			{
-				var bins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
-
 				// Iterate through each response row, and create new bin day objects
 				foreach (var row in rowsData.EnumerateObject())
 				{
-					var rowData = row.Value;
-
 					// Iterate through each date key, and create a new bin day object
-					foreach (var dateKey in dateKeys)
+					foreach (var dateKey in binType.Keys)
 					{
-						var dateString = rowData.GetProperty(dateKey).GetString()!;
+						var dateString = row.Value.GetProperty(dateKey).GetString()!;
 						if (string.IsNullOrWhiteSpace(dateString))
 						{
 							continue;
@@ -252,7 +255,7 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 						{
 							Date = DateUtilities.ParseDateExact(dateString, "dd/MM/yyyy"),
 							Address = address,
-							Bins = bins,
+							Bins = [binType],
 						};
 
 						binDays.Add(binDay);
@@ -271,18 +274,4 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
-	/// <summary>
-	/// Creates the initial request used to start an AchieveService session.
-	/// </summary>
-	private static ClientSideRequest CreateSessionRequest()
-	{
-		var clientSideRequest = new ClientSideRequest
-		{
-			RequestId = 1,
-			Url = $"{_baseUrl}/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-de9223b1-a7c6-408f-aaa3-aee33fd7f7fa/AF-Stage-9fa33e2e-4c1b-4963-babf-4348ab8154bc/definition.json&consentMessage=yes",
-			Method = "GET",
-		};
-
-		return clientSideRequest;
-	}
 }
