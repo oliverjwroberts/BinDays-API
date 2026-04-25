@@ -31,25 +31,25 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		{
 			Name = "Non-Recyclable General Waste",
 			Colour = BinColour.Green,
-			Keys = [ "nextGeneralWasteCollectionDate", "nextGeneralWasteCollectionDate2nd" ],
+			Keys = [ "Green-lidded" ],
 		},
 		new()
 		{
 			Name = "Paper and Card Recycling",
 			Colour = BinColour.Blue,
-			Keys = [ "nextBlueCollectionDate", "nextBlueWasteCollectionDate2nd" ],
+			Keys = [ "Blue-lidded" ],
 		},
 		new()
 		{
 			Name = "Plastic, Soft Plastics, Cans, Cartons and Foil Recycling",
 			Colour = BinColour.Grey,
-			Keys = [ "nextGreyWasteCollectionDate", "nextGreyWasteCollectionDate2nd" ],
+			Keys = [ "Grey-lidded" ],
 		},
 		new()
 		{
 			Name = "Food and Garden Waste",
 			Colour = BinColour.Brown,
-			Keys = [ "nextGardenandFoodWasteCollectionDate", "nextGardenandFoodWasteCollectionDate2nd" ],
+			Keys = [ "Brown-lidded" ],
 		},
 	];
 
@@ -68,6 +68,12 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 	/// </summary>
 	[GeneratedRegex(@"sid=(?<sid>[a-f0-9]+)")]
 	private static partial Regex SessionIdRegex();
+
+	/// <summary>
+	/// Regex to extract date and type entries from the DatesForCalendarCreation field.
+	/// </summary>
+	[GeneratedRegex(@"\{ date: '(?<date>[^']+)', type: '(?<type>[^']+)'\}")]
+	private static partial Regex CalendarDateRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
@@ -208,7 +214,7 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
-				Url = $"{_baseUrl}/apibroker/runLookup?id=5c9267cee5efe&sid={sessionId}",
+				Url = $"{_baseUrl}/apibroker/runLookup?id=673dc0e5e5bd0&sid={sessionId}",
 				Method = "POST",
 				Headers = new()
 				{
@@ -230,37 +236,33 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 		else if (clientSideResponse.RequestId == 2)
 		{
 			using var jsonDocument = JsonDocument.Parse(clientSideResponse.Content);
-			var rowsData = jsonDocument.RootElement
+			var datesString = jsonDocument.RootElement
 				.GetProperty("integration")
 				.GetProperty("transformed")
-				.GetProperty("rows_data");
+				.GetProperty("rows_data")
+				.GetProperty("0")
+				.GetProperty("DatesForCalendarCreation")
+				.GetString()!;
 
-			// Iterate through each configured bin type, and create new bin day objects
+			// Iterate through each calendar entry, and create a new bin day object
 			var binDays = new List<BinDay>();
-			foreach (var binType in _binTypes)
+			foreach (Match match in CalendarDateRegex().Matches(datesString)!)
 			{
-				// Iterate through each response row, and create new bin day objects
-				foreach (var row in rowsData.EnumerateObject())
+				var dateString = match.Groups["date"].Value;
+				var typeString = match.Groups["type"].Value;
+
+				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, typeString);
+				if (matchedBins.Count == 0)
 				{
-					// Iterate through each date key, and create a new bin day object
-					foreach (var dateKey in binType.Keys)
-					{
-						var dateString = row.Value.GetProperty(dateKey).GetString()?.Trim();
-						if (string.IsNullOrWhiteSpace(dateString))
-						{
-							continue;
-						}
-
-						var binDay = new BinDay
-						{
-							Date = DateUtilities.ParseDateExact(dateString, "dd/MM/yyyy"),
-							Address = address,
-							Bins = [binType],
-						};
-
-						binDays.Add(binDay);
-					}
+					continue;
 				}
+
+				binDays.Add(new BinDay
+				{
+					Date = DateUtilities.ParseDateExact(dateString, "yyyy-MM-dd"),
+					Address = address,
+					Bins = matchedBins,
+				});
 			}
 
 			var getBinDaysResponse = new GetBinDaysResponse
