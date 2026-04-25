@@ -61,7 +61,7 @@ internal sealed partial class PerthAndKinrossCouncil : GovUkCollectorBase, IColl
 	/// <summary>
 	/// The session initialization URL for the AchieveService form.
 	/// </summary>
-	private const string _sessionUrl = _baseUrl + "/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-de9223b1-a7c6-408f-aaa3-aee33fd7f7fa/AF-Stage-9fa33e2e-4c1b-4963-babf-4348ab8154bc/definition.json&consentMessage=yes";
+	private const string _sessionUrl = $"{_baseUrl}/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-de9223b1-a7c6-408f-aaa3-aee33fd7f7fa/AF-Stage-9fa33e2e-4c1b-4963-babf-4348ab8154bc/definition.json&consentMessage=yes";
 
 	/// <summary>
 	/// Regex to extract the session ID from the form page content.
