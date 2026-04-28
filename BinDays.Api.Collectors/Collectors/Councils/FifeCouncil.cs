@@ -55,12 +55,7 @@ internal sealed class FifeCouncil : GovUkCollectorBase, ICollector
 	/// <summary>
 	/// The URL for loading the citizen API context.
 	/// </summary>
-	private const string _citizenUrl = "https://fife.form.uk.empro.verintcloudservices.com/api/citizen?archived=Y&preview=false&locale=en";
-
-	/// <summary>
-	/// The URL for the property search widget API.
-	/// </summary>
-	private const string _propertySearchUrl = "https://fife.form.uk.empro.verintcloudservices.com/api/widget?action=propertysearch&actionedby=ps_3SHSN93&loadform=true&access=citizen&locale=en";
+	private const string _citizenUrl = "https://fife.form.uk.empro.verintcloudservices.com/api/citizen";
 
 	/// <summary>
 	/// The form name for the bin calendar.
@@ -104,7 +99,7 @@ internal sealed class FifeCouncil : GovUkCollectorBase, ICollector
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
-				Url = _propertySearchUrl,
+				Url = "https://fife.form.uk.empro.verintcloudservices.com/api/widget?action=propertysearch&actionedby=ps_3SHSN93&loadform=true&access=citizen",
 				Method = "POST",
 				Headers = new()
 				{
@@ -173,65 +168,20 @@ internal sealed class FifeCouncil : GovUkCollectorBase, ICollector
 
 			return getBinDaysResponse;
 		}
-		// Prepare client-side request for searching addresses
+		// Prepare client-side request for retrieving property data
 		else if (clientSideResponse.RequestId == 1)
 		{
 			var authToken = clientSideResponse.Headers["authorization"];
 
-			var requestBody = $$"""
-			{
-				"name": "{{_formName}}",
-				"data": {
-					"postcode": "{{address.Postcode!}}"
-				}
-			}
-			""";
-
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
-				Url = _propertySearchUrl,
-				Method = "POST",
-				Headers = new()
-				{
-					{ "user-agent", Constants.UserAgent },
-					{ "authorization", authToken },
-					{ "content-type", Constants.ApplicationJson },
-				},
-				Body = requestBody,
-			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
-		}
-		// Prepare client-side request for retrieving property data
-		else if (clientSideResponse.RequestId == 2)
-		{
-			var authToken = clientSideResponse.Headers["authorization"];
-			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 3,
 				Url = $"https://fife.form.uk.empro.verintcloudservices.com/api/getobjectdata?objecttype=property&objectid={address.Uid!}",
 				Method = "POST",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
 					{ "authorization", authToken },
-					{ "cookie", requestCookies },
-				},
-				Options = new ClientSideOptions
-				{
-					Metadata =
-					{
-						{ "cookie", requestCookies },
-					},
 				},
 			};
 
@@ -243,10 +193,9 @@ internal sealed class FifeCouncil : GovUkCollectorBase, ICollector
 			return getBinDaysResponse;
 		}
 		// Prepare client-side request for retrieving bin collections
-		else if (clientSideResponse.RequestId == 3)
+		else if (clientSideResponse.RequestId == 2)
 		{
 			var authToken = clientSideResponse.Headers["authorization"];
-			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
 
 			using var document = JsonDocument.Parse(clientSideResponse.Content);
 			var uprn = document.RootElement.GetProperty("profileData").GetProperty("property-UPRN").GetString()!;
@@ -262,15 +211,14 @@ internal sealed class FifeCouncil : GovUkCollectorBase, ICollector
 
 			var clientSideRequest = new ClientSideRequest
 			{
-				RequestId = 4,
-				Url = "https://fife.form.uk.empro.verintcloudservices.com/api/custom?action=powersuite_bin_calendar_collections&actionedby=bin_calendar&loadform=true&access=citizen&locale=en",
+				RequestId = 3,
+				Url = "https://fife.form.uk.empro.verintcloudservices.com/api/custom?action=powersuite_bin_calendar_collections&actionedby=bin_calendar&loadform=true&access=citizen",
 				Method = "POST",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
 					{ "authorization", authToken },
 					{ "content-type", Constants.ApplicationJson },
-					{ "cookie", requestCookies },
 				},
 				Body = requestBody,
 			};
@@ -283,7 +231,7 @@ internal sealed class FifeCouncil : GovUkCollectorBase, ICollector
 			return getBinDaysResponse;
 		}
 		// Process bin days from response
-		else if (clientSideResponse.RequestId == 4)
+		else if (clientSideResponse.RequestId == 3)
 		{
 			using var document = JsonDocument.Parse(clientSideResponse.Content);
 			var collectionsJson = document.RootElement.GetProperty("data").GetProperty("tab_collections").EnumerateArray();
