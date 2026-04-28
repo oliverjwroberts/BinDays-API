@@ -63,6 +63,12 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 				RequestId = 1,
 				Url = "https://plymouth-self.achieveservice.com/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-31283f9a-3ae7-4225-af71-bf3884e0ac1b/AF-Stagedba4a7d5-e916-46b6-abdb-643d38bec875/definition.json&redirectlink=/en&cancelRedirectLink=/en&consentMessage=yes",
 				Method = "GET",
+				Options = new ClientSideOptions
+				{
+					// The form URL returns a 302 with the form HTML (including sid) in the response body.
+					// Following the redirect leads to the portal homepage with a different, invalid sid.
+					FollowRedirects = false,
+				},
 			};
 
 			var getAddressesResponse = new GetAddressesResponse
@@ -186,6 +192,10 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 				RequestId = 1,
 				Url = "https://plymouth-self.achieveservice.com/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-31283f9a-3ae7-4225-af71-bf3884e0ac1b/AF-Stagedba4a7d5-e916-46b6-abdb-643d38bec875/definition.json&redirectlink=/en&cancelRedirectLink=/en&consentMessage=yes",
 				Method = "GET",
+				Options = new ClientSideOptions
+				{
+					FollowRedirects = false,
+				},
 			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
