@@ -47,51 +47,38 @@ internal sealed class CityOfYorkCouncil : GovUkCollectorBase, ICollector
 		},
 	];
 
-	private const string _addressLookupBaseUrl = "https://addresses.york.gov.uk/api/address/lookupbypostcode/";
-	private const string _wasteApiBaseUrl = "https://waste-api.york.gov.uk/api/Collections/GetBinCollectionDataForUprn/";
-
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
+		// Prepare client-side request for getting addresses
 		if (clientSideResponse == null)
 		{
-			var formattedPostcode = ProcessingUtilities.FormatPostcode(postcode);
-			var encodedPostcode = Uri.EscapeDataString(formattedPostcode);
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 1,
-				Url = $"{_addressLookupBaseUrl}{encodedPostcode}",
-				Method = "GET",
-				Headers = new()
-				{
-					{ "user-agent", Constants.UserAgent },
-				},
-			};
-
 			return new GetAddressesResponse
 			{
-				NextClientSideRequest = clientSideRequest,
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = $"https://addresses.york.gov.uk/api/address/lookupbypostcode/{postcode}",
+					Method = "GET",
+				},
 			};
 		}
-
-		if (clientSideResponse.RequestId == 1)
+		// Process addresses from response
+		else if (clientSideResponse.RequestId == 1)
 		{
-			var formattedPostcode = ProcessingUtilities.FormatPostcode(postcode);
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
-			var addresses = new List<Address>();
 
+			// Iterate through each address, and create a new address object
+			var addresses = new List<Address>();
 			foreach (var addressElement in jsonDoc.RootElement.EnumerateArray())
 			{
 				var property = addressElement.GetProperty("shortAddress").GetString()!.Trim();
 				var uprn = addressElement.GetProperty("uprn").GetString()!;
-				var addressPostcode = addressElement.TryGetProperty("postcode", out var pcElement)
-					? pcElement.GetString()!
-					: formattedPostcode;
 
 				addresses.Add(new Address
 				{
 					Property = property,
-					Postcode = addressPostcode,
+					Postcode = postcode,
 					Uid = uprn,
 				});
 			}
@@ -102,36 +89,33 @@ internal sealed class CityOfYorkCouncil : GovUkCollectorBase, ICollector
 			};
 		}
 
+		// Throw exception for invalid request
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
+		// Prepare client-side request for getting bin days
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 1,
-				Url = $"{_wasteApiBaseUrl}{address.Uid}",
-				Method = "GET",
-				Headers = new()
-				{
-					{ "user-agent", Constants.UserAgent },
-				},
-			};
-
 			return new GetBinDaysResponse
 			{
-				NextClientSideRequest = clientSideRequest,
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = $"https://waste-api.york.gov.uk/api/Collections/GetBinCollectionDataForUprn/{address.Uid}",
+					Method = "GET",
+				},
 			};
 		}
-
-		if (clientSideResponse.RequestId == 1)
+		// Process bin days from response
+		else if (clientSideResponse.RequestId == 1)
 		{
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
-			var binDays = new List<BinDay>();
 
+			// Iterate through each bin day, and create a new bin day object
+			var binDays = new List<BinDay>();
 			foreach (var serviceElement in jsonDoc.RootElement.GetProperty("services").EnumerateArray())
 			{
 				var nextCollection = serviceElement.GetProperty("nextCollection").GetString()!;
@@ -164,6 +148,7 @@ internal sealed class CityOfYorkCouncil : GovUkCollectorBase, ICollector
 			};
 		}
 
+		// Throw exception for invalid request
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 }
