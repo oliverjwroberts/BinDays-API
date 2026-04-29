@@ -5,8 +5,10 @@ using BinDays.Api.Collectors.Models;
 using BinDays.Api.Collectors.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 /// <summary>
 /// Collector implementation for Plymouth Council.
@@ -17,7 +19,7 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 	public string Name => "Plymouth Council";
 
 	/// <inheritdoc/>
-	public Uri WebsiteUrl => new("https://www.plymouth.gov.uk/checkyourcollectionday");
+	public Uri WebsiteUrl => new("https://www.plymouth.gov.uk/check-your-bin-day");
 
 	/// <inheritdoc/>
 	public override string GovUkId => "plymouth";
@@ -61,14 +63,8 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = "https://plymouth-self.achieveservice.com/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-31283f9a-3ae7-4225-af71-bf3884e0ac1b/AF-Stagedba4a7d5-e916-46b6-abdb-643d38bec875/definition.json&redirectlink=/en&cancelRedirectLink=/en&consentMessage=yes",
+				Url = "https://plymouth-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-084d6742-3572-41ba-ac1a-430750451f9d/AF-Stage-67ba684d-0a5b-48f8-9c50-1c01cc43c396/definition.json&process=1&process_uri=sandbox-processes://AF-Process-084d6742-3572-41ba-ac1a-430750451f9d&process_id=AF-Process-084d6742-3572-41ba-ac1a-430750451f9d",
 				Method = "GET",
-				Options = new ClientSideOptions
-				{
-					// The form URL returns a 302 with the form HTML (including sid) in the response body.
-					// Following the redirect leads to the portal homepage with a different, invalid sid.
-					FollowRedirects = false,
-				},
 			};
 
 			var getAddressesResponse = new GetAddressesResponse
@@ -112,7 +108,7 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 			};
 			var requestBody = JsonSerializer.Serialize(requestBodyObject);
 
-			var requestUrl = $"https://plymouth-self.achieveservice.com/apibroker/?api=RunLookup&id=560d5266e930f&sid={sessionId}";
+			var requestUrl = $"https://plymouth-self.achieveservice.com/apibroker/runLookup?id=560d5266e930f&repeat_against=&noRetry=false&getOnlyTokens=undefined&log_id=&app_name=AF-Renderer::Self&sid={sessionId}";
 
 			var requestHeaders = new Dictionary<string, string> {
 				{"content-type", Constants.ApplicationJson},
@@ -138,43 +134,33 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 		// Step 3: Process Addresses from Response
 		else if (clientSideResponse.RequestId == 2)
 		{
-			// Parse response content as JSON object
-			var responseJson = JsonDocument.Parse(clientSideResponse.Content).RootElement;
-			var rawAddresses = responseJson.GetProperty("integration").GetProperty("transformed").GetProperty("rows_data");
+			var xmlData = JsonDocument.Parse(clientSideResponse.Content).RootElement
+				.GetProperty("data").GetString()!;
 
-			// Iterate through each address object
 			var addresses = new List<Address>();
-			foreach (var property in rawAddresses.EnumerateObject())
+			foreach (var row in XDocument.Parse(xmlData).Descendants("Row"))
 			{
-				var addressData = property.Value;
+				var columns = row.Elements("result").ToDictionary(
+					e => e.Attribute("column")!.Value,
+					e => e.Value
+				);
 
-				var flat = addressData.GetProperty("flat").ToString();
-				var house = addressData.GetProperty("house").ToString();
-				var street = addressData.GetProperty("street").ToString();
-				var town = addressData.GetProperty("town").ToString();
-				var uprn = addressData.GetProperty("uprn").ToString();
+				var addressProperty = $"{columns["flat"]} {columns["house"]}".Trim().Replace("  ", " ");
 
-				// Combine flat and house for property, ensuring no double spaces
-				var addressProperty = $"{flat} {house}".Trim().Replace("  ", " ");
-
-				var address = new Address
+				addresses.Add(new Address
 				{
 					Property = addressProperty,
-					Street = street.Trim(),
-					Town = town.Trim(),
+					Street = columns["street"].Trim(),
+					Town = columns["town"].Trim(),
 					Postcode = postcode,
-					Uid = uprn,
-				};
-
-				addresses.Add(address);
+					Uid = columns["uprn"],
+				});
 			}
 
-			var getAddressesResponse = new GetAddressesResponse
+			return new GetAddressesResponse
 			{
 				Addresses = [.. addresses],
 			};
-
-			return getAddressesResponse;
 		}
 
 		// Throw exception for invalid request
@@ -190,12 +176,8 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = "https://plymouth-self.achieveservice.com/en/AchieveForms/?form_uri=sandbox-publish://AF-Process-31283f9a-3ae7-4225-af71-bf3884e0ac1b/AF-Stagedba4a7d5-e916-46b6-abdb-643d38bec875/definition.json&redirectlink=/en&cancelRedirectLink=/en&consentMessage=yes",
+				Url = "https://plymouth-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-084d6742-3572-41ba-ac1a-430750451f9d/AF-Stage-67ba684d-0a5b-48f8-9c50-1c01cc43c396/definition.json&process=1&process_uri=sandbox-processes://AF-Process-084d6742-3572-41ba-ac1a-430750451f9d&process_id=AF-Process-084d6742-3572-41ba-ac1a-430750451f9d",
 				Method = "GET",
-				Options = new ClientSideOptions
-				{
-					FollowRedirects = false,
-				},
 			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
