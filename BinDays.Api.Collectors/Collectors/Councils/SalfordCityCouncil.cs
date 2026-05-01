@@ -54,6 +54,12 @@ internal sealed partial class SalfordCityCouncil : GovUkCollectorBase, ICollecto
 	];
 
 	/// <summary>
+	/// Regex for the RequestVerificationToken.
+	/// </summary>
+	[GeneratedRegex(@"<input name=""__RequestVerificationToken"" type=""hidden"" value=""(?<token>[^""]+)"" />")]
+	private static partial Regex TokenRegex();
+
+	/// <summary>
 	/// Regex for ICS events.
 	/// </summary>
 	[GeneratedRegex(@"SUMMARY:(?<summary>.+?)\r?\n.*?DTSTART; ?VALUE ?= ?DATE:(?<date>\d{8})", RegexOptions.Singleline)]
@@ -62,18 +68,42 @@ internal sealed partial class SalfordCityCouncil : GovUkCollectorBase, ICollecto
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting addresses
+		// Prepare client-side request for getting the initial page (to obtain CSRF token)
 		if (clientSideResponse == null)
 		{
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
+				Url = "https://www.salford.gov.uk/bins-and-recycling/bin-collection-days/",
+				Method = "GET",
+			};
+
+			var getAddressesResponse = new GetAddressesResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getAddressesResponse;
+		}
+		// Prepare client-side request for getting addresses
+		else if (clientSideResponse.RequestId == 1)
+		{
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(
+				clientSideResponse.Headers["set-cookie"]
+			);
+
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 2,
 				Url = "https://www.salford.gov.uk/umbraco/api/SalfordAPI/AddressSearch",
 				Method = "POST",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
 					{ "content-type", Constants.FormUrlEncoded },
+					{ "cookie", requestCookies },
+					{ "requestverificationtoken", token },
 				},
 				Body = $"QueryStr={postcode}",
 			};
@@ -86,7 +116,7 @@ internal sealed partial class SalfordCityCouncil : GovUkCollectorBase, ICollecto
 			return getAddressesResponse;
 		}
 		// Process addresses from response
-		else if (clientSideResponse.RequestId == 1)
+		else if (clientSideResponse.RequestId == 2)
 		{
 			using var addressesJson = JsonDocument.Parse(clientSideResponse.Content);
 			var addressesElement = addressesJson.RootElement.GetProperty("addresses").EnumerateArray();
