@@ -29,15 +29,34 @@ For each failure where `needsInvestigation` is `true`:
 - Read the failure logs from the JSON entry
 - Read the collector source at `BinDays.Api.Collectors/Collectors/Councils/{councilName}.cs`
 
-### 2. Categorise the Failure
+### 2. Check the Council Website with Playwright
 
-Determine which category fits:
+Before categorising based on logs alone, use the Playwright MCP browser to manually verify whether the council website is actually working. This is the most reliable signal.
 
-- **Website down** — `HttpRequestException`, SSL errors, timeouts, 5xx status codes. The council website is temporarily unavailable. No code fix needed.
-- **Website changed** — `InvalidOperationException`, `NullReferenceException`, `FormatException`, assertion failures (empty collections, regex not matching, unexpected HTML structure). The council changed their website and the collector needs updating.
-- **Data issue** — `BinDaysNotFoundException`, `AddressesNotFoundException`. The council may have changed how addresses or collections are returned, or the test data may no longer be valid. May need a code fix.
+Extract the council's base URL from the collector source (look for the first `Uri` or URL string). Then:
 
-### 3. Create a GitHub Issue
+1. Navigate to the council's bin collection / waste services page
+2. Attempt an address search using the postcode from the test logs (look for `postcode:` or similar in the logs), or try a generic local postcode if none is present
+3. Check whether real addresses are returned in the results
+4. Select an address and confirm that actual bin collection dates are displayed
+
+Record the outcome:
+- **Website working** — you were able to complete a full address search and see bin day results
+- **Website broken** — the page failed to load, the search returned no results, an error was shown, or the page structure was unrecognisable
+
+If the Playwright check cannot be completed (e.g. the URL cannot be determined), note this and fall back to log-based categorisation only.
+
+### 3. Categorise the Failure
+
+Use **both** the Playwright result and the error logs to determine which category fits:
+
+- **Website down** — Playwright showed the website is broken/unavailable, OR logs show `HttpRequestException`, SSL errors, timeouts, 5xx status codes. The council website is temporarily unavailable. No code fix needed.
+- **Website changed** — Playwright confirmed the website is working (addresses and bin days are visible), but the test still failed. This means the collector code no longer matches the website's current structure. Errors in logs: `InvalidOperationException`, `NullReferenceException`, `FormatException`, assertion failures (empty collections, regex not matching, unexpected HTML structure).
+- **Data issue** — `BinDaysNotFoundException`, `AddressesNotFoundException` and Playwright shows the website working. The collector may be parsing data incorrectly, or the test address/postcode may no longer be valid.
+
+The Playwright check takes precedence: if the website is clearly working end-to-end, the failure is code-side ("Website changed" or "Data issue") even if the logs look ambiguous.
+
+### 4. Create a GitHub Issue
 
 For every failure, create a GitHub issue with:
 
@@ -50,9 +69,10 @@ For every failure, create a GitHub issue with:
   |-------|-------|
   | Category | {category} |
   | Key error | {key error message} |
+  | Website check | {Working / Broken / Could not determine} |
   | Workflow run | [{runId}]({runUrl}) |
 
-  {any additional notes, e.g. pattern across failures}
+  {any additional notes, e.g. pattern across failures, what Playwright found}
   ```
 
 Use the `gh` CLI to create issues. Write the body to a temp file and use `--body-file` to preserve newlines:
@@ -63,6 +83,7 @@ cat > /tmp/issue-body.md << 'EOF'
 |-------|-------|
 | Category | {category} |
 | Key error | {key error message} |
+| Website check | {Working / Broken / Could not determine} |
 | Workflow run | [{runId}]({runUrl}) |
 
 {any additional notes}
@@ -70,7 +91,7 @@ EOF
 gh issue create --title "Broken collector: {councilName}" --label "collector-broken" --body-file /tmp/issue-body.md
 ```
 
-### 4. Attempt Fix (Website Changed Only)
+### 5. Attempt Fix (Website Changed Only)
 
 **Only for "Website changed" failures**, attempt to fix the collector:
 
@@ -101,4 +122,5 @@ Fixes are best-effort — the issue ensures manual follow-up if the auto-fix doe
 
 - If **all** failures are in the same category (e.g. all "Website down"), mention this pattern in the first issue body. It may indicate a runner or network problem rather than individual council issues.
 - Do **not** create fix PRs for "Website down" or "Data issue" failures — only create the tracking issue.
-- You can only reason from logs and source code (you cannot run the tests or access the council websites). Keep fix attempts realistic.
+- Include the Playwright finding in the issue body (e.g. "Website manually verified as working" or "Website appears to be down"), so that humans reading the issue have the full context.
+- Fix attempts for "Website changed" should be grounded in what Playwright revealed about the current website structure — use it to understand what the page looks like now before writing code.
