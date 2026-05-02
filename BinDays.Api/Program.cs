@@ -65,11 +65,12 @@ builder.Services.AddOpenApi(options =>
 var app = builder.Build();
 
 app.MapOpenApi();
-app.MapScalarApiReference(options =>
+app.MapScalarApiReference((options, context) =>
 {
 	options
 		.WithOperationTitleSource(OperationTitleSource.Path)
-		.AddApiKeyAuthentication("ApiKey", scheme => { });
+		.AddApiKeyAuthentication("ApiKey", scheme => { })
+		.AddServer(new ScalarServer($"{context.Request.Scheme}://{context.Request.Host}"));
 });
 
 app.UseCors(x => x
