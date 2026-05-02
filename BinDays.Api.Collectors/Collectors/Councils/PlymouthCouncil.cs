@@ -46,6 +46,12 @@ internal sealed partial class PlymouthCouncil : GovUkCollectorBase, ICollector
 			Colour = BinColour.Black,
 			Keys = [ "Garden" ],
 		},
+		new()
+		{
+			Name = "Food Waste",
+			Colour = BinColour.Grey,
+			Keys = [ "Food" ],
+		},
 	];
 
 	/// <summary>
