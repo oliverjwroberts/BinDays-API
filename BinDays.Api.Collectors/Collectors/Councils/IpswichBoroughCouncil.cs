@@ -30,7 +30,7 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 		new()
 		{
 			Name = "Large Food Waste",
-			Colour = BinColour.Green,
+			Colour = BinColour.Grey,
 			Keys = [ "Large food waste caddy" ],
 			Type = BinType.Caddy,
 		},
@@ -75,7 +75,7 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 	/// Regex for each bin day entry from the data.
 	/// </summary>
 	[GeneratedRegex(@"<dt class=""ibc-calendar-entry"">[\s\S]*?<div class=""ibc-calendar-entry__date"">(?<day>\d+)<span class=""ibc-visually-hidden"">[^<]+</span></div>\s*<div class=""ibc-calendar-entry__month"">(?<monthYear>[^<]+)</div>[\s\S]*?<dd class=""ibc-calendar-entry__details"">[\s\S]*?<ul>\s*(?<bins>[\s\S]*?)\s*</ul>")]
-	private static partial Regex BinDayRegex();
+	private static partial Regex BinDaysRegex();
 
 	/// <summary>
 	/// Regex for each bin type in a bin day entry.
@@ -172,7 +172,7 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 		// Process bin days from response
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var rawBinDays = BinDayRegex().Matches(clientSideResponse.Content)!;
+			var rawBinDays = BinDaysRegex().Matches(clientSideResponse.Content)!;
 
 			// Iterate through each bin day, and create a new bin day object
 			var binDays = new List<BinDay>();
@@ -180,7 +180,10 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 			{
 				var day = rawBinDay.Groups["day"].Value.Trim();
 				var monthYear = rawBinDay.Groups["monthYear"].Value.Trim();
-				var date = DateUtilities.ParseDateExact($"{day} {monthYear}", "d MMMM yyyy");
+				var date = DateUtilities.ParseDateExact(
+					$"{day} {monthYear}",
+					"d MMMM yyyy"
+				);
 
 				var rawBins = BinNameRegex().Matches(rawBinDay.Groups["bins"].Value)!;
 
