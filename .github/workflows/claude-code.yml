@@ -35,12 +35,68 @@ jobs:
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
 
+      - name: Install AI Tools
+        uses: ./.github/actions/install-ai-tools
+        with:
+          codex_config: ${{ secrets.CODEX_CONFIG }}
+          playwright_config: |
+            {
+              "browser": {
+                "browserName": "firefox",
+                "launchOptions": {
+                  "headless": true
+                },
+                "contextOptions": {
+                  "recordHar": {
+                    "path": "./.agent/playwright/out/requests.har",
+                    "content": "embed"
+                  }
+                }
+              },
+              "outputDir": "./.agent/playwright/out",
+              "saveTrace": true,
+              "isolated": true
+            }
+
+      - name: Create output directory
+        run: mkdir -p .agent/playwright/out
+
+      - name: Write Playwright MCP config
+        run: |
+          cat > .agent/playwright/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "playwright": {
+                "command": "npx",
+                "args": ["@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+              }
+            }
+          }
+          EOF
+
+      - name: Detect slash command and stage prompt
+        id: detect
+        env:
+          COMMENT: ${{ github.event.comment.body || github.event.review.body }}
+        run: |
+          COMMAND=""
+          if   echo "$COMMENT" | grep -qE '^/claude review(\s|$)';      then COMMAND="review"
+          elif echo "$COMMENT" | grep -qE '^/claude resolve(\s|$)';     then COMMAND="resolve"
+          elif echo "$COMMENT" | grep -qE '^/claude investigate(\s|$)'; then COMMAND="investigate"
+          elif echo "$COMMENT" | grep -qE '^/claude implement(\s|$)';   then COMMAND="implement"
+          fi
+
+          if [ -n "$COMMAND" ]; then
+            cp ".agent/prompts/claude-${COMMAND}.md" .agent/command-prompt.md
+            echo "prompt_note=Read .agent/command-prompt.md for the task instructions before proceeding." >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.generate-token.outputs.token }}
-          trigger_phrase: "@claude"
+          trigger_phrase: "/claude"
           include_fix_links: true
           show_full_output: true
           display_report: true
@@ -53,3 +109,5 @@ jobs:
             --model claude-sonnet-4-6
             --dangerously-skip-permissions
             --verbose
+            --mcp-config .agent/playwright/mcp-config.json
+            --append-system-prompt "${{ steps.detect.outputs.prompt_note }}"

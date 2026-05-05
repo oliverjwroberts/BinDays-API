@@ -1,0 +1,1 @@
+Resolve all outstanding review comments on this pull request. For each unresolved comment, apply the fix following `.gemini/styleguide.md`. Run `dotnet build` and `dotnet format --severity info` after all changes, then commit and push. Post a summary of what was resolved.

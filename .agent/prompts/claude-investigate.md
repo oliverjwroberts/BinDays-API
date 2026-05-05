@@ -1,0 +1,1 @@
+Investigate this GitHub issue. Use Playwright MCP to check the council website if relevant — attempt a real address lookup and note what the site returns. Categorise the problem (website down / website changed / data issue / new collector request), identify the root cause, and post your findings as a comment with recommended next steps.
