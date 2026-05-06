@@ -6,12 +6,11 @@ using BinDays.Api.Collectors.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 /// <summary>
 /// Collector implementation for Sheffield City Council.
 /// </summary>
-internal sealed partial class SheffieldCityCouncil : GovUkCollectorBase, ICollector
+internal sealed class SheffieldCityCouncil : GovUkCollectorBase, ICollector
 {
 	/// <inheritdoc/>
 	public string Name => "Sheffield City Council";
@@ -50,62 +49,37 @@ internal sealed partial class SheffieldCityCouncil : GovUkCollectorBase, ICollec
 	/// <summary>
 	/// The base URL for the Sheffield waste services portal.
 	/// </summary>
-	private const string _baseUrl = "https://wasteservices.sheffield.gov.uk";
+	private const string _baseUrl = "https://wasteservices.sheffield.gov.uk/api";
 
 	/// <summary>
-	/// Regex for parsing addresses from the search response.
+	/// The council identifier required by the Sheffield API.
 	/// </summary>
-	[GeneratedRegex("""<option value="/property/(?<uid>[^"]+)">(?<address>[^<]+)</option>""")]
-	private static partial Regex AddressRegex();
-
-	/// <summary>
-	/// Regex for parsing bin collections from the property page.
-	/// </summary>
-	[GeneratedRegex(
-		"""<tr class="service-id-[^"]+"[^>]*>\s*<td class="service-name">.*?<h4>(?<service>[^<]+)</h4>.*?<td class="next-service">\s*<span class="table-label">[^<]+<\/span>\s*(?<dates>[^<]+)\s*<\/td>""",
-		RegexOptions.Singleline
-	)]
-	private static partial Regex BinDaysRegex();
+	private const string _councilId = "1";
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting session cookie
+		// Prepare client-side request for getting addresses
 		if (clientSideResponse == null)
 		{
+			var requestBody = $$"""
+			{
+				"councilId": "{{_councilId}}",
+				"searchQuery": "{{postcode}}"
+			}
+			""";
+
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = $"{_baseUrl}/",
-				Method = "GET",
-			};
-
-			var getAddressesResponse = new GetAddressesResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getAddressesResponse;
-		}
-		// Prepare client-side request for searching addresses
-		else if (clientSideResponse.RequestId == 1)
-		{
-			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 2,
-				Url = $"{_baseUrl}/property/",
 				Method = "POST",
+				Url = $"{_baseUrl}/getPropertySearch",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
-					{ "content-type", Constants.FormUrlEncoded },
-					{ "x-requested-with", Constants.XmlHttpRequest },
-					{ "cookie", requestCookies },
+					{ "content-type", Constants.ApplicationJson },
 				},
-				Body = $"aj=true&search_property={postcode}",
+				Body = requestBody,
 			};
 
 			var getAddressesResponse = new GetAddressesResponse
@@ -116,19 +90,17 @@ internal sealed partial class SheffieldCityCouncil : GovUkCollectorBase, ICollec
 			return getAddressesResponse;
 		}
 		// Process addresses from response
-		else if (clientSideResponse.RequestId == 2)
+		else if (clientSideResponse.RequestId == 1)
 		{
 			using var jsonDocument = JsonDocument.Parse(clientSideResponse.Content);
-
-			var resultContent = jsonDocument.RootElement.GetProperty("result").GetString()!;
-			var rawAddresses = AddressRegex().Matches(resultContent)!;
+			var rawAddresses = jsonDocument.RootElement.GetProperty("data").EnumerateArray();
 
 			// Iterate through each address, and create a new address object
 			var addresses = new List<Address>();
-			foreach (Match rawAddress in rawAddresses)
+			foreach (var rawAddress in rawAddresses)
 			{
-				var uid = rawAddress.Groups["uid"].Value.Trim();
-				var property = rawAddress.Groups["address"].Value.Trim();
+				var uid = rawAddress.GetProperty("id").GetString()!;
+				var property = rawAddress.GetProperty("name").GetString()!.Trim();
 
 				var address = new Address
 				{
@@ -155,39 +127,28 @@ internal sealed partial class SheffieldCityCouncil : GovUkCollectorBase, ICollec
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting session cookie
+		// Prepare client-side request for getting bin days
 		if (clientSideResponse == null)
 		{
+			var requestBody = $$"""
+			{
+				"pointId": "{{address.Uid}}",
+				"pointType": "PointAddress",
+				"councilId": "{{_councilId}}"
+			}
+			""";
+
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = $"{_baseUrl}/",
-				Method = "GET",
-			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
-		}
-		// Prepare client-side request for fetching bin day data
-		else if (clientSideResponse.RequestId == 1)
-		{
-			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 2,
-				Url = $"{_baseUrl}/property/{address.Uid}",
-				Method = "GET",
+				Method = "POST",
+				Url = $"{_baseUrl}/getCollectionDays",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
-					{ "cookie", requestCookies },
+					{ "content-type", Constants.ApplicationJson },
 				},
+				Body = requestBody,
 			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
@@ -198,25 +159,24 @@ internal sealed partial class SheffieldCityCouncil : GovUkCollectorBase, ICollec
 			return getBinDaysResponse;
 		}
 		// Process bin days from response
-		else if (clientSideResponse.RequestId == 2)
+		else if (clientSideResponse.RequestId == 1)
 		{
-			var rawBinDays = BinDaysRegex().Matches(clientSideResponse.Content)!;
+			using var jsonDocument = JsonDocument.Parse(clientSideResponse.Content);
+			var rawServices = jsonDocument.RootElement.GetProperty("activeServices").EnumerateArray();
 
-			// Iterate through each bin day, and create a new bin day object
+			// Iterate through each service, and create new bin day objects
 			var binDays = new List<BinDay>();
-			foreach (Match rawBinDay in rawBinDays)
+			foreach (var rawService in rawServices)
 			{
-				var service = rawBinDay.Groups["service"].Value.Trim();
-				var dateStrings = rawBinDay.Groups["dates"].Value.Split(',', StringSplitOptions.RemoveEmptyEntries);
+				var service = rawService.GetProperty("serviceName").GetString()!.Trim();
+				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
+				var rawSchedules = rawService.GetProperty("serviceSchedules").EnumerateArray();
 
-				// Iterate through each collection date for the service
-				foreach (var dateString in dateStrings)
+				// Iterate through each service schedule, and create a new bin day object
+				foreach (var rawSchedule in rawSchedules)
 				{
-					var trimmedDate = dateString.Trim();
-
-					var date = DateUtilities.ParseDateExact(trimmedDate, "d MMM yyyy");
-
-					var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
+					var currentScheduledDate = rawSchedule.GetProperty("currentScheduledDate").GetString()!;
+					var date = DateUtilities.ParseDateExact(currentScheduledDate[..10], "yyyy-MM-dd");
 
 					var binDay = new BinDay
 					{
