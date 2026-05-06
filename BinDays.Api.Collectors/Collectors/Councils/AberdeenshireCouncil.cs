@@ -71,7 +71,7 @@ internal sealed partial class AberdeenshireCouncil : GovUkCollectorBase, ICollec
 	/// </summary>
 	[GeneratedRegex(
 		@"<tr>\s*<td[^>]*>(?<date>\d{2}/\d{2}/\d{4})[^<]*</td>\s*<td[^>]*>(?<service>[^<]+)</td>\s*<td[^>]*>[^<]+</td>\s*</tr>",
-		RegexOptions.IgnoreCase | RegexOptions.Singleline
+		RegexOptions.IgnoreCase
 	)]
 	private static partial Regex BinDayRegex();
 
@@ -101,13 +101,6 @@ internal sealed partial class AberdeenshireCouncil : GovUkCollectorBase, ICollec
 			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
 			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
 
-			Dictionary<string, string> formData = new()
-			{
-				{ "PageModel.searchTerms", postcode },
-				{ "SearchButton", "Search" },
-				{ "__RequestVerificationToken", token },
-			};
-
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
@@ -119,7 +112,12 @@ internal sealed partial class AberdeenshireCouncil : GovUkCollectorBase, ICollec
 					{ "content-type", Constants.FormUrlEncoded },
 					{ "cookie", requestCookies },
 				},
-				Body = ProcessingUtilities.ConvertDictionaryToFormData(formData),
+				Body = ProcessingUtilities.ConvertDictionaryToFormData(new()
+				{
+					{ "PageModel.searchTerms", postcode },
+					{ "SearchButton", "Search" },
+					{ "__RequestVerificationToken", token },
+				}),
 			};
 
 			var getAddressesResponse = new GetAddressesResponse
