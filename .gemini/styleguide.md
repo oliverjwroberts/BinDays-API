@@ -342,7 +342,7 @@ Dictionary<string, string> requestHeaders = new()
 
 ### Handling Bot Protection
 
-Some council websites use bot-detection that blocks requests which don't resemble browser traffic. Since all requests originate from users' residential IPs (not server IPs), the IP itself should not trigger bot protection — the issue is usually that the request *looks* automated because it lacks typical browser headers.
+Some council websites use bot-detection that blocks requests which don't resemble browser traffic. Since all requests originate from users' residential IPs (not server IPs), the IP itself should not trigger bot protection — the issue is usually that the request _looks_ automated because it lacks typical browser headers.
 
 **Why headers matter**: Bot-protection systems (Cloudflare, AWS WAF, Akamai, etc.) check whether incoming requests match the fingerprint of a real browser. The main signals are: HTTP headers (presence, values, and consistency), TLS fingerprint (JA3/JA4), and HTTP/2 settings. Since our requests are executed by the mobile app's native HTTP stack from residential IPs, the TLS fingerprint and HTTP/2 settings are naturally legitimate — headers are the main thing we control.
 
@@ -389,11 +389,11 @@ Headers = new()
 
 **Sec-Fetch values vary by request type:**
 
-| Scenario | `sec-fetch-dest` | `sec-fetch-mode` | `sec-fetch-site` | `sec-fetch-user` |
-|---|---|---|---|---|
-| First navigation (no referrer) | `document` | `navigate` | `none` | `?1` |
-| In-site navigation | `document` | `navigate` | `same-origin` | `?1` |
-| AJAX/fetch request | `empty` | `cors` | `same-origin` | *(omit)* |
+| Scenario                       | `sec-fetch-dest` | `sec-fetch-mode` | `sec-fetch-site` | `sec-fetch-user` |
+| ------------------------------ | ---------------- | ---------------- | ---------------- | ---------------- |
+| First navigation (no referrer) | `document`       | `navigate`       | `none`           | `?1`             |
+| In-site navigation             | `document`       | `navigate`       | `same-origin`    | `?1`             |
+| AJAX/fetch request             | `empty`          | `cors`           | `same-origin`    | _(omit)_         |
 
 **Never include `sec-ch-ua` Client Hints headers.** We always use a Firefox user-agent (`Constants.UserAgent`), and Firefox does not send Client Hints. Including them contradicts the claimed browser identity and is itself a bot-detection signal:
 
@@ -1230,13 +1230,13 @@ var clientSideRequest = CreateInitialRequest();
 
 **Apply this minimization strategy to every aspect of the collector:**
 
-| What to minimize | How to test |
-|---|---|
-| Request body fields | Remove fields one-by-one or in batches, run integration tests |
-| URL query parameters | Strip all except obvious IDs, add back only what fails |
-| HTTP headers | Start with just `content-type` and `cookie`, add only what's needed |
-| Request steps | Remove a value from downstream request bodies; if still works, delete the fetch step entirely |
-| UID fields | Remove fields from the `GetBinDays` request body to find which address data is actually needed |
+| What to minimize     | How to test                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| Request body fields  | Remove fields one-by-one or in batches, run integration tests                                  |
+| URL query parameters | Strip all except obvious IDs, add back only what fails                                         |
+| HTTP headers         | Start with just `content-type` and `cookie`, add only what's needed                            |
+| Request steps        | Remove a value from downstream request bodies; if still works, delete the fetch step entirely  |
+| UID fields           | Remove fields from the `GetBinDays` request body to find which address data is actually needed |
 
 **Real-world example**: A collector copied from browser traffic had 4 request steps, 15+ request body fields, 6 URL query parameters, and a 9-field UID. After iterative testing, it was reduced to 2 request steps, 1-2 request body fields, 0 extra URL query parameters, and a single-field UID. The file went from 430+ lines to ~260 lines.
 
@@ -1374,12 +1374,12 @@ var date = DateUtilities.ParseDateExact(dateString, "d MMMM yyyy");
 
 **Reason**: Each method enforces the right format contract at the boundary and redirects misuse with a clear error.
 
-| Method | Format contains year? | Handles Today/Tomorrow? |
-|---|---|---|
-| `ParseDateExact` | ✅ required | ❌ |
-| `ParseRelativeDateOrExact` | ✅ required | ✅ |
-| `ParseRelativeDateOrInferYear` | ❌ forbidden | ✅ |
-| `ParseDateInferringYear` | ❌ forbidden | ❌ |
+| Method                         | Format contains year? | Handles Today/Tomorrow? |
+| ------------------------------ | --------------------- | ----------------------- |
+| `ParseDateExact`               | ✅ required           | ❌                      |
+| `ParseRelativeDateOrExact`     | ✅ required           | ✅                      |
+| `ParseRelativeDateOrInferYear` | ❌ forbidden          | ✅                      |
+| `ParseDateInferringYear`       | ❌ forbidden          | ❌                      |
 
 ```c#
 // Full date with year
@@ -1641,6 +1641,31 @@ var clientSideRequest = new ClientSideRequest
 - Use `Split(';', 2)` when you only need to split into a specific number of parts
 - Always use the null-forgiving operator when splitting: `address.Uid!.Split(';')`
 - Document the UID format with a comment in both methods for clarity
+
+### ⚠️ WARNING: Changing UID format is a breaking change for existing users
+
+**Reason**: The mobile app caches addresses client-side with no guaranteed expiry. If a collector's UID format changes (e.g. when migrating to a new council API), existing users will submit the old UID format to `GetBinDays` indefinitely — not just until the server-side cache expires.
+
+**When a UID format change is unavoidable**, add backwards-compatible handling in `GetBinDays` to detect and resolve the old format:
+
+1. Detect the old format by inspecting the UID (e.g. `address.Uid!.Contains(':')` for a colon-delimited legacy ID)
+2. Add a separate code path that resolves the old UID to the new format (e.g. by re-fetching addresses and matching by index)
+3. Mark it with a `// TODO: Remove once legacy UIDs are no longer in circulation` comment — but note that removal may not be safe if addresses are cached client-side indefinitely
+
+```c#
+public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
+{
+    // TODO: Remove once legacy UIDs are no longer in circulation.
+    // Addresses cached before the API migration use the old CTRL:63:_:D:N format.
+    if (address.Uid!.Contains(':'))
+    {
+        return GetLegacyBinDays(address, clientSideResponse);
+    }
+
+    // Normal path using new UPRN-based UIDs
+    // ...
+}
+```
 
 ---
 
