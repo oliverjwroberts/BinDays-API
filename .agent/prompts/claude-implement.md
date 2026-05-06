@@ -1,1 +1,0 @@
-Implement this GitHub issue. Read `.gemini/styleguide.md` before writing any code — all code must comply. Use Playwright MCP if navigating a website would help understand the requirements. Run `dotnet test` until passing and `dotnet format --severity info`, then create a branch and open a pull request.
