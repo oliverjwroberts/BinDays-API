@@ -93,9 +93,8 @@ internal abstract class BinzoneCollectorBase : GovUkCollectorBase
 			using var jsonDocument = JsonDocument.Parse(clientSideResponse.Content);
 			var setData = jsonDocument.RootElement.GetProperty("setData");
 
-			var addresses = new List<Address>();
-
 			// Iterate through each address, and create a new address object
+			var addresses = new List<Address>();
 			foreach (var addressItem in setData.EnumerateArray())
 			{
 				var council = addressItem.GetProperty("council").GetString()!;
