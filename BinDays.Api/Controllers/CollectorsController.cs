@@ -194,7 +194,7 @@ public class CollectorsController : ControllerBase
 			// Cache result if successful and no next client-side request
 			if (result.NextClientSideRequest == null)
 			{
-				_logger.WithData("Addresses", result.Addresses)
+				_logger.WithJsonData("Addresses", result.Addresses)
 					.LogInformation("Successfully retrieved {AddressCount} addresses for gov.uk ID: {GovUkId}, postcode: {Postcode}.", result.Addresses!.Count, govUkId, postcode);
 
 				var cacheEntryOptions = new DistributedCacheEntryOptions { AbsoluteExpiration = DateTimeOffset.UtcNow.Date.AddDays(30) };
@@ -256,7 +256,7 @@ public class CollectorsController : ControllerBase
 			// Cache result if successful and no next client-side request
 			if (result.NextClientSideRequest == null)
 			{
-				_logger.WithData("BinDays", result.BinDays)
+				_logger.WithJsonData("BinDays", result.BinDays)
 					.LogInformation("Successfully retrieved {BinDayCount} bin days for gov.uk ID: {GovUkId}, postcode: {Postcode}, UID: {Uid}.", result.BinDays!.Count, govUkId, postcode, uid);
 
 				// Cache until the day after the earliest bin day, or for 1 day if no bin days are returned.
