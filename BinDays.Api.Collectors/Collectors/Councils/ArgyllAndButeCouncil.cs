@@ -38,6 +38,19 @@ internal sealed partial class ArgyllAndButeCouncil : GovUkCollectorBase, ICollec
 			Colour = BinColour.Blue,
 			Keys = [ "Recycling" ],
 		},
+		new()
+		{
+			Name = "Glass Recycling",
+			Colour = BinColour.Grey,
+			Keys = [ "Glass" ],
+		},
+		new()
+		{
+			Name = "Food Waste",
+			Colour = BinColour.Brown,
+			Keys = [ "Food" ],
+			Type = BinType.Caddy,
+		},
 	];
 
 	/// <summary>
