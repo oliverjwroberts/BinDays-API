@@ -10,6 +10,7 @@ using System.Collections.Generic;
 /// Implements <see cref="ILogger"/> so standard logging extension methods can be used directly,
 /// avoiding CA2254 warnings while keeping the call site clean.
 /// </summary>
+/// <param name="logger">The underlying logger to write events to.</param>
 public sealed class LoggerData(ILogger logger) : ILogger
 {
 	/// <summary>
@@ -38,6 +39,17 @@ public sealed class LoggerData(ILogger logger) : ILogger
 	/// <inheritdoc/>
 	public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 	{
+		if (!IsEnabled(logLevel))
+		{
+			return;
+		}
+
+		if (_data.Count == 0)
+		{
+			logger.Log(logLevel, eventId, state, exception, formatter);
+			return;
+		}
+
 		using (logger.BeginScope(_data))
 		{
 			logger.Log(logLevel, eventId, state, exception, formatter);
