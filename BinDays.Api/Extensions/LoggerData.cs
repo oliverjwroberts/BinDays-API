@@ -12,41 +12,41 @@ using System.Collections.Generic;
 /// </summary>
 public sealed class LoggerData(ILogger logger) : ILogger
 {
-    /// <summary>
-    /// Structured properties to attach to the log event via <see cref="ILogger.BeginScope{TState}"/>.
-    /// </summary>
-    private readonly Dictionary<string, object?> _data = [];
+	/// <summary>
+	/// Structured properties to attach to the log event via <see cref="ILogger.BeginScope{TState}"/>.
+	/// </summary>
+	private readonly Dictionary<string, object?> _data = [];
 
-    /// <summary>
-    /// Adds a structured property to include in the log event.
-    /// </summary>
-    public LoggerData WithData(string key, object? value)
-    {
-        _data[key] = value;
-        return this;
-    }
+	/// <summary>
+	/// Adds a structured property to include in the log event.
+	/// </summary>
+	public LoggerData WithData(string key, object? value)
+	{
+		_data[key] = value;
+		return this;
+	}
 
-    /// <summary>
-    /// Adds a structured property to include in the log event, serialised as JSON.
-    /// </summary>
-    public LoggerData WithJsonData(string key, object? value)
-    {
-        _data[key] = value is null ? null : JsonConvert.SerializeObject(value);
-        return this;
-    }
+	/// <summary>
+	/// Adds a structured property to include in the log event, serialised as JSON.
+	/// </summary>
+	public LoggerData WithJsonData(string key, object? value)
+	{
+		_data[key] = value is null ? null : JsonConvert.SerializeObject(value);
+		return this;
+	}
 
-    /// <inheritdoc/>
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-    {
-        using (logger.BeginScope(_data))
-        {
-            logger.Log(logLevel, eventId, state, exception, formatter);
-        }
-    }
+	/// <inheritdoc/>
+	public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+	{
+		using (logger.BeginScope(_data))
+		{
+			logger.Log(logLevel, eventId, state, exception, formatter);
+		}
+	}
 
-    /// <inheritdoc/>
-    public bool IsEnabled(LogLevel logLevel) => logger.IsEnabled(logLevel);
+	/// <inheritdoc/>
+	public bool IsEnabled(LogLevel logLevel) => logger.IsEnabled(logLevel);
 
-    /// <inheritdoc/>
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => logger.BeginScope(state);
+	/// <inheritdoc/>
+	public IDisposable? BeginScope<TState>(TState state) where TState : notnull => logger.BeginScope(state);
 }
