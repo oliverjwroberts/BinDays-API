@@ -4,6 +4,7 @@ using BinDays.Api.Collectors.Exceptions;
 using BinDays.Api.Collectors.Models;
 using BinDays.Api.Collectors.Services;
 using BinDays.Api.Collectors.Utilities;
+using BinDays.Api.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
@@ -193,7 +194,8 @@ public class CollectorsController : ControllerBase
 			// Cache result if successful and no next client-side request
 			if (result.NextClientSideRequest == null)
 			{
-				_logger.LogInformation("Successfully retrieved {AddressCount} addresses for gov.uk ID: {GovUkId}, postcode: {Postcode}.", result.Addresses!.Count, govUkId, postcode);
+				_logger.WithJsonData("Addresses", result.Addresses)
+					.LogInformation("Successfully retrieved {AddressCount} addresses for gov.uk ID: {GovUkId}, postcode: {Postcode}.", result.Addresses!.Count, govUkId, postcode);
 
 				var cacheEntryOptions = new DistributedCacheEntryOptions { AbsoluteExpiration = DateTimeOffset.UtcNow.Date.AddDays(30) };
 				_cache.SetString(cacheKey, JsonConvert.SerializeObject(result), cacheEntryOptions);
@@ -254,7 +256,8 @@ public class CollectorsController : ControllerBase
 			// Cache result if successful and no next client-side request
 			if (result.NextClientSideRequest == null)
 			{
-				_logger.LogInformation("Successfully retrieved {BinDayCount} bin days for gov.uk ID: {GovUkId}, postcode: {Postcode}, UID: {Uid}.", result.BinDays!.Count, govUkId, postcode, uid);
+				_logger.WithJsonData("BinDays", result.BinDays)
+					.LogInformation("Successfully retrieved {BinDayCount} bin days for gov.uk ID: {GovUkId}, postcode: {Postcode}, UID: {Uid}.", result.BinDays!.Count, govUkId, postcode, uid);
 
 				// Cache until the day after the earliest bin day, or for 1 day if no bin days are returned.
 				var earliestBinDayDate = result.BinDays?.OrderBy(binDay => binDay.Date).FirstOrDefault()?.Date.ToDateTime(TimeOnly.MinValue);
