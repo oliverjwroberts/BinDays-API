@@ -19,15 +19,16 @@ public class DumfriesAndGallowayCouncilTests
 	}
 
 	[Theory]
-	[InlineData("DG7 1AA")]
-	public async Task GetBinDaysTest(string postcode)
+	[InlineData("DG7 1AA", 2)]
+	[InlineData("DG7 1LW")]
+	public async Task GetBinDaysTest(string postcode, int addressIndex = 0)
 	{
 		await TestSteps.EndToEnd(
 			_client,
 			postcode,
 			_govUkId,
 			_outputHelper,
-			addressIndex: 2
+			addressIndex: addressIndex
 		);
 	}
 }
