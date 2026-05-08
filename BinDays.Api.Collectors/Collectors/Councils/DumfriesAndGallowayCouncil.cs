@@ -69,6 +69,18 @@ internal sealed partial class DumfriesAndGallowayCouncil : GovUkCollectorBase, I
 	[GeneratedRegex(@"<option value=""(?<uid>\d+)"">(?<address>[^<]+)</option>")]
 	private static partial Regex AddressRegex();
 
+	/// <summary>
+	/// Regex for the date from the iCal DTSTART line.
+	/// </summary>
+	[GeneratedRegex(@":(?<date>\d{8})")]
+	private static partial Regex DtStartRegex();
+
+	/// <summary>
+	/// Regex for the service name from the iCal SUMMARY line.
+	/// </summary>
+	[GeneratedRegex(@" for (?<service>.+)$")]
+	private static partial Regex SummaryServiceRegex();
+
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
@@ -89,9 +101,9 @@ internal sealed partial class DumfriesAndGallowayCouncil : GovUkCollectorBase, I
 
 			return getAddressesResponse;
 		}
+		// Prepare client-side request for posting the postcode
 		else if (clientSideResponse.RequestId == 1)
 		{
-			// Prepare client-side request for posting the postcode
 			var formBuildId = FormBuildIdRegex().Match(clientSideResponse.Content).Groups["formBuildId"].Value;
 
 			var clientSideRequest = new ClientSideRequest
@@ -120,9 +132,9 @@ internal sealed partial class DumfriesAndGallowayCouncil : GovUkCollectorBase, I
 
 			return getAddressesResponse;
 		}
+		// Process addresses from response
 		else if (clientSideResponse.RequestId == 2)
 		{
-			// Process addresses from response
 			var rawAddresses = AddressRegex().Matches(clientSideResponse.Content)!;
 
 			// Iterate through each address, and create a new address object
@@ -175,6 +187,7 @@ internal sealed partial class DumfriesAndGallowayCouncil : GovUkCollectorBase, I
 			var unfoldedLines = new List<string>();
 			var lines = clientSideResponse.Content.Split('\n');
 
+			// Unfold iCal continuation lines (RFC 5545 line folding)
 			foreach (var line in lines)
 			{
 				var trimmedLine = line.TrimEnd('\r');
@@ -210,8 +223,7 @@ internal sealed partial class DumfriesAndGallowayCouncil : GovUkCollectorBase, I
 
 				if (line.StartsWith("DTSTART", StringComparison.Ordinal))
 				{
-					var value = line[(line.LastIndexOf(':') + 1)..];
-					dateString = value[..8];
+					dateString = DtStartRegex().Match(line).Groups["date"].Value;
 					continue;
 				}
 
@@ -220,8 +232,7 @@ internal sealed partial class DumfriesAndGallowayCouncil : GovUkCollectorBase, I
 					continue;
 				}
 
-				var serviceStartIndex = summary.LastIndexOf(" for ", StringComparison.Ordinal) + 5;
-				var service = summary[serviceStartIndex..];
+				var service = SummaryServiceRegex().Match(summary).Groups["service"].Value;
 				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 
 				if (matchedBins.Count == 0)
