@@ -9,6 +9,11 @@ using Xunit.Abstractions;
 internal static class TestSteps
 {
 	/// <summary>
+	/// Limits concurrent gov.uk postcode lookups to avoid rate limiting.
+	/// </summary>
+	private static readonly SemaphoreSlim _govUkSemaphore = new(1, 1);
+
+	/// <summary>
 	/// Executes the full end-to-end test cycle by posting to the real API endpoints.
 	/// </summary>
 	/// <param name="client">The integration test client.</param>
@@ -50,7 +55,17 @@ internal static class TestSteps
 		try
 		{
 			// Step 1: Get Collector
-			var collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
+			await _govUkSemaphore.WaitAsync();
+			TestCollector collector;
+			try
+			{
+				collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
+				await Task.Delay(TimeSpan.FromMilliseconds(500));
+			}
+			finally
+			{
+				_govUkSemaphore.Release();
+			}
 
 			// Step 2: Get Addresses
 			var addresses = await GetAddressesAsync(client, expectedGovUkId, postcode);
