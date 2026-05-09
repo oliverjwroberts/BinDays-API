@@ -10,7 +10,7 @@ using System.Text.Json;
 /// <summary>
 /// Collector implementation for Leeds City Council.
 /// </summary>
-internal sealed partial class LeedsCityCouncil : GovUkCollectorBase, ICollector
+internal sealed class LeedsCityCouncil : GovUkCollectorBase, ICollector
 {
 	/// <inheritdoc/>
 	public string Name => "Leeds City Council";
@@ -63,8 +63,10 @@ internal sealed partial class LeedsCityCouncil : GovUkCollectorBase, ICollector
 				RequestId = 1,
 				Url = requestUrl,
 				Method = "GET",
-				Headers = new() {
-					{"Ocp-Apim-Subscription-Key", _apiSubscriptionKey}
+				Headers = new()
+				{
+					{ "user-agent", Constants.UserAgent },
+					{ "Ocp-Apim-Subscription-Key", _apiSubscriptionKey },
 				},
 			};
 
@@ -123,8 +125,10 @@ internal sealed partial class LeedsCityCouncil : GovUkCollectorBase, ICollector
 				RequestId = 1,
 				Url = requestUrl,
 				Method = "GET",
-				Headers = new() {
-					{"Ocp-Apim-Subscription-Key", _apiSubscriptionKey}
+				Headers = new()
+				{
+					{ "user-agent", Constants.UserAgent },
+					{ "Ocp-Apim-Subscription-Key", _apiSubscriptionKey },
 				},
 			};
 
