@@ -30,19 +30,19 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 		new()
 		{
 			Name = "General Waste",
-			Colour = BinColour.Grey,
+			Colour = BinColour.Green,
 			Keys = ["REFUSE", "Refuse"],
 		},
 		new()
 		{
 			Name = "Paper and Cardboard Recycling",
 			Colour = BinColour.Blue,
-			Keys = ["RECYCLING", "Paper"],
+			Keys = ["Paper"],
 		},
 		new()
 		{
 			Name = "Plastic and Cans Recycling",
-			Colour = BinColour.Green,
+			Colour = BinColour.Red,
 			Keys = ["Plastic"],
 		},
 		new()
@@ -59,23 +59,15 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 		},
 		new()
 		{
-			Name = "Trolley Collection",
-			Colour = BinColour.Blue,
-			Keys = ["transition_week"],
-		},
-		new()
-		{
 			Name = "Food Waste",
-			Colour = BinColour.Grey,
+			Colour = BinColour.Green,
 			Keys =
 			[
 				"REFUSE",
-				"RECYCLING",
 				"Refuse",
 				"Paper",
 				"Plastic",
 				"Glass",
-				"transition_week",
 			],
 			Type = BinType.Caddy,
 		},
@@ -196,10 +188,13 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 		// Prepare client-side request for getting bin day events
 		if (clientSideResponse == null)
 		{
+			var after = DateOnly.FromDateTime(DateTime.Now);
+			var before = new DateOnly(after.Year, after.Month, 1).AddMonths(2).AddDays(-1);
+
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = $"{_apiBaseUrl}/api/places/{address.Uid!}/services/{_serviceId}/events?locale={_locale}",
+				Url = $"{_apiBaseUrl}/api/places/{address.Uid!}/services/{_serviceId}/events?after={after:yyyy-MM-dd}&before={before:yyyy-MM-dd}&locale={_locale}",
 				Method = "GET",
 			};
 
