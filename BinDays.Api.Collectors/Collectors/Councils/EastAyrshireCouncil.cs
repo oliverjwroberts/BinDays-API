@@ -31,19 +31,37 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 		{
 			Name = "General Waste",
 			Colour = BinColour.Grey,
-			Keys = [ "REFUSE" ],
+			Keys = ["REFUSE", "Refuse"],
 		},
 		new()
 		{
 			Name = "Paper and Cardboard Recycling",
 			Colour = BinColour.Blue,
-			Keys = [ "RECYCLING" ],
+			Keys = ["RECYCLING", "Paper"],
+		},
+		new()
+		{
+			Name = "Plastic and Cans Recycling",
+			Colour = BinColour.Green,
+			Keys = ["Plastic"],
+		},
+		new()
+		{
+			Name = "Glass Recycling",
+			Colour = BinColour.Purple,
+			Keys = ["Glass"],
 		},
 		new()
 		{
 			Name = "Garden Waste",
 			Colour = BinColour.Brown,
-			Keys = [ "Garden" ],
+			Keys = ["Garden"],
+		},
+		new()
+		{
+			Name = "Trolley Collection",
+			Colour = BinColour.Blue,
+			Keys = ["transition_week"],
 		},
 		new()
 		{
@@ -51,8 +69,13 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 			Colour = BinColour.Grey,
 			Keys =
 			[
-				"RECYCLING",
 				"REFUSE",
+				"RECYCLING",
+				"Refuse",
+				"Paper",
+				"Plastic",
+				"Glass",
+				"transition_week",
 			],
 			Type = BinType.Caddy,
 		},
@@ -197,10 +220,7 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 			var binDays = new List<BinDay>();
 			foreach (var rawEvent in rawEvents.EnumerateArray())
 			{
-				var collectionDate = DateUtilities.ParseDateExact(
-					rawEvent.GetProperty("day").GetString()!,
-					"yyyy-MM-dd"
-				);
+				var matchingBins = new List<Bin>();
 
 				// Iterate through each event flag, and map it to bins
 				foreach (var rawFlag in rawEvent.GetProperty("flags").EnumerateArray())
@@ -211,22 +231,22 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 					}
 
 					var flagName = rawFlag.GetProperty("name").GetString()!;
-					var matchingBins = ProcessingUtilities.GetMatchingBins(_binTypes, flagName);
-
-					if (matchingBins.Count == 0)
-					{
-						continue;
-					}
-
-					var binDay = new BinDay
-					{
-						Date = collectionDate,
-						Address = address,
-						Bins = matchingBins,
-					};
-
-					binDays.Add(binDay);
+					matchingBins.AddRange(ProcessingUtilities.GetMatchingBins(_binTypes, flagName));
 				}
+
+				if (matchingBins.Count == 0)
+				{
+					continue;
+				}
+
+				var binDay = new BinDay
+				{
+					Date = DateUtilities.ParseDateExact(rawEvent.GetProperty("day").GetString()!, "yyyy-MM-dd"),
+					Address = address,
+					Bins = matchingBins,
+				};
+
+				binDays.Add(binDay);
 			}
 
 			if (binDays.Count == 0)

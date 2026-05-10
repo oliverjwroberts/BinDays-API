@@ -19,7 +19,7 @@ public class EastAyrshireCouncilTests
 	}
 
 	[Theory]
-	[InlineData("KA17 0AS")]
+	[InlineData("KA18 1NE")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
