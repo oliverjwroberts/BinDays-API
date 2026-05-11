@@ -19,7 +19,7 @@ public class GlasgowCityCouncilTests
 	}
 
 	[Theory]
-	[InlineData("G53 5AA")]
+	[InlineData("G44 5LA")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
