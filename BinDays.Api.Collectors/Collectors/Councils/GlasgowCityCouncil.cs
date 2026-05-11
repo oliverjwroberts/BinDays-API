@@ -84,10 +84,28 @@ internal sealed partial class GlasgowCityCouncil : GovUkCollectorBase, ICollecto
 	private static partial Regex AddressRegex();
 
 	/// <summary>
-	/// Regex for extracting bin collection entries from the calendar grid.
+	/// Regex for extracting the UPRN from the calendar page.
 	/// </summary>
-	[GeneratedRegex(@"<td title=""(?<date>[^""]+)""[^>]*>(?:(?!<\/td>).)*?<img[^>]*src=""\.\./Images/Bins/(?<image>[^""]+)""(?:(?!<\/td>).)*?<\/td>", RegexOptions.Singleline)]
-	private static partial Regex BinDayRegex();
+	[GeneratedRegex(@"UPRN=(?<uprn>\d+)")]
+	private static partial Regex UprnRegex();
+
+	/// <summary>
+	/// Regex for extracting the next month navigation argument from the calendar page.
+	/// </summary>
+	[GeneratedRegex(@"__doPostBack\('ctl00\$Application\$Calendar','(?<arg>V\d+)'\)[^""]*""[^>]*title=""Go to the next month""")]
+	private static partial Regex NextMonthArgRegex();
+
+	/// <summary>
+	/// Regex for extracting calendar day cells with title attributes.
+	/// </summary>
+	[GeneratedRegex(@"<td title=""(?<date>[^""]+)""[^>]*>(?<content>(?:(?!<\/td>).)*)<\/td>", RegexOptions.Singleline)]
+	private static partial Regex CalendarCellRegex();
+
+	/// <summary>
+	/// Regex for extracting bin image filenames from calendar cell content.
+	/// </summary>
+	[GeneratedRegex(@"\.\./Images/Bins/(?<image>[^""]+)""")]
+	private static partial Regex BinImageInCellRegex();
 
 	/// <summary>
 	/// Regex for removing the "today is" prefix from title text.
@@ -228,19 +246,90 @@ internal sealed partial class GlasgowCityCouncil : GovUkCollectorBase, ICollecto
 
 			return getBinDaysResponse;
 		}
-		// Process bin days from response
+		// Process current month calendar and prepare next month request
 		else if (clientSideResponse.RequestId == 3)
 		{
-			var rawBinDays = BinDayRegex().Matches(clientSideResponse.Content)!;
+			var uprn = UprnRegex().Match(clientSideResponse.Content).Groups["uprn"].Value;
+			var nextMonthArg = NextMonthArgRegex().Match(clientSideResponse.Content).Groups["arg"].Value;
+			var viewState = GetHiddenFieldValue(clientSideResponse.Content, "__VIEWSTATE");
+			var eventValidation = GetHiddenFieldValue(clientSideResponse.Content, "__EVENTVALIDATION");
 
-			// Iterate through each bin day, and create a new bin day object
-			var binDays = new List<BinDay>();
-			foreach (Match rawBinDay in rawBinDays)
+			var currentMonthEntries = ParseCalendarEntries(clientSideResponse.Content);
+
+			// Encode current month entries as "date=image;date=image;..." for next request metadata
+			var metadataParts = new List<string>();
+			foreach (var (date, image) in currentMonthEntries)
 			{
-				var rawDate = rawBinDay.Groups["date"].Value.Trim();
-				var dateString = TodayPrefixRegex().Replace(rawDate, string.Empty);
-				var image = rawBinDay.Groups["image"].Value.Trim();
+				metadataParts.Add($"{date}={image}");
+			}
 
+			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
+			{
+				{ "__EVENTTARGET", "ctl00$Application$Calendar" },
+				{ "__EVENTARGUMENT", nextMonthArg },
+				{ "__VIEWSTATE", viewState },
+				{ "__EVENTVALIDATION", eventValidation },
+			});
+
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 4,
+				Url = $"https://onlineservices.glasgow.gov.uk/forms/refuseandrecyclingcalendar/CollectionsCalendar.aspx?UPRN={uprn}",
+				Method = "POST",
+				Headers = new()
+				{
+					{ "user-agent", Constants.UserAgent },
+					{ "content-type", Constants.FormUrlEncoded },
+				},
+				Body = requestBody,
+				Options = new ClientSideOptions
+				{
+					Metadata = new()
+					{
+						{ "binDays", string.Join(";", metadataParts) },
+					},
+				},
+			};
+
+			var getBinDaysResponse = new GetBinDaysResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getBinDaysResponse;
+		}
+		// Process next month calendar and combine with current month bin days
+		else if (clientSideResponse.RequestId == 4)
+		{
+			// Decode current month entries from metadata ("date=image;date=image;...")
+			var previousEntries = new List<(string Date, string Image)>();
+			foreach (var entry in clientSideResponse.Options.Metadata["binDays"].Split(';', StringSplitOptions.RemoveEmptyEntries))
+			{
+				var separatorIdx = entry.IndexOf('=');
+				previousEntries.Add((entry[..separatorIdx], entry[(separatorIdx + 1)..]));
+			}
+
+			var nextMonthEntries = ParseCalendarEntries(clientSideResponse.Content);
+
+			// Iterate through all entries and create bin day objects
+			var binDays = new List<BinDay>();
+			foreach (var (dateString, image) in previousEntries)
+			{
+				var date = DateUtilities.ParseDateExact(dateString, "dddd, dd MMMM yyyy");
+				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, image);
+
+				var binDay = new BinDay
+				{
+					Date = date,
+					Address = address,
+					Bins = matchedBins,
+				};
+
+				binDays.Add(binDay);
+			}
+
+			foreach (var (dateString, image) in nextMonthEntries)
+			{
 				var date = DateUtilities.ParseDateExact(dateString, "dddd, dd MMMM yyyy");
 				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, image);
 
@@ -313,5 +402,36 @@ internal sealed partial class GlasgowCityCouncil : GovUkCollectorBase, ICollecto
 		}
 
 		throw new InvalidOperationException($"Hidden field '{fieldName}' was not found.");
+	}
+
+	/// <summary>
+	/// Parses calendar day entries from the HTML, returning date and bin image filename pairs.
+	/// </summary>
+	private static IReadOnlyCollection<(string Date, string Image)> ParseCalendarEntries(string html)
+	{
+		var entries = new List<(string Date, string Image)>();
+
+		// Iterate through each calendar day cell to extract bin collection data
+		foreach (Match cellMatch in CalendarCellRegex().Matches(html)!)
+		{
+			var rawDate = cellMatch.Groups["date"].Value.Trim();
+			var content = cellMatch.Groups["content"].Value;
+			var imageMatches = BinImageInCellRegex().Matches(content)!;
+
+			if (imageMatches.Count == 0)
+			{
+				continue;
+			}
+
+			var dateString = TodayPrefixRegex().Replace(rawDate, string.Empty);
+
+			// Iterate through each bin image in the cell
+			foreach (Match imageMatch in imageMatches)
+			{
+				entries.Add((dateString, imageMatch.Groups["image"].Value.Trim()));
+			}
+		}
+
+		return [.. entries];
 	}
 }
