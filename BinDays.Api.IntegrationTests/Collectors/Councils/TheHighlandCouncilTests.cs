@@ -19,15 +19,14 @@ public class TheHighlandCouncilTests
 	}
 
 	[Theory]
-	[InlineData("IV2 3EU")]
+	[InlineData("IV2 3EW")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper,
-			addressIndex: 1
+			_outputHelper
 		);
 	}
 }
