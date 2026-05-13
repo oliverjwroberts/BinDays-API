@@ -347,7 +347,7 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 	/// <summary>
 	/// Creates an AJAX request for searching addresses by postcode.
 	/// </summary>
-	private ClientSideRequest CreateAddressSearchRequest(int requestId, string postcode, string formBuildId)
+	private static ClientSideRequest CreateAddressSearchRequest(int requestId, string postcode, string formBuildId)
 	{
 		var clientSideRequest = new ClientSideRequest
 		{
