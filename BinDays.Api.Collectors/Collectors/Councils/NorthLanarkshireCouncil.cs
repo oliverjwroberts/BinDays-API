@@ -8,9 +8,6 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-/// <summary>
-/// Collector implementation for North Lanarkshire Council.
-/// </summary>
 internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICollector
 {
 	/// <inheritdoc/>
@@ -22,9 +19,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 	/// <inheritdoc/>
 	public override string GovUkId => "north-lanarkshire";
 
-	/// <summary>
-	/// The list of bin types for this collector.
-	/// </summary>
 	private readonly IReadOnlyCollection<Bin> _binTypes =
 	[
 		new()
@@ -53,54 +47,29 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 		},
 	];
 
-	/// <summary>
-	/// The bin collection page URL.
-	/// </summary>
 	private const string _binCollectionUrl = "https://www.northlanarkshire.gov.uk/bin-collection-dates";
 
-	/// <summary>
-	/// The Drupal AJAX endpoint for address finder actions.
-	/// </summary>
 	private const string _addressFinderAjaxUrl = "https://www.northlanarkshire.gov.uk/bin-collection-dates?element_parents=address_finder&ajax_form=1&_wrapper_format=drupal_ajax";
 
-	/// <summary>
-	/// The Drupal form identifier.
-	/// </summary>
 	private const string _formId = "ace_bin_collection_dates_address_finder_form";
 
-	/// <summary>
-	/// The triggering element name for postcode searches.
-	/// </summary>
 	private const string _postcodeSearchTrigger = "address_finder_postcode_search_button";
 
-	/// <summary>
-	/// Regex for the form build id.
-	/// </summary>
 	[GeneratedRegex(@"name=""form_build_id""\s+value=""(?<formBuildId>[^""]+)""")]
 	private static partial Regex FormBuildIdRegex();
 
-	/// <summary>
-	/// Regex for the addresses from the data.
-	/// </summary>
 	[GeneratedRegex(@"<option value=""(?<uid>[^""]*)"">(?<address>[^<]+)</option>")]
 	private static partial Regex AddressRegex();
 
-	/// <summary>
-	/// Regex for each service and date block from the bin collections page.
-	/// </summary>
 	[GeneratedRegex(@"<div class=""waste-type-container[^""]*"">\s*<div>\s*<h3>(?<service>[^<]+)</h3>[\s\S]*?(?<dates>(?:\s*<p>\d{1,2}\s+[A-Za-z]+\s+\d{4}</p>\s*)+)[\s\S]*?</div>\s*</div>")]
 	private static partial Regex BinTypeSectionRegex();
 
-	/// <summary>
-	/// Regex for collection dates from each service section.
-	/// </summary>
 	[GeneratedRegex(@"<p>(?<date>\d{1,2}\s+[A-Za-z]+\s+\d{4})</p>")]
 	private static partial Regex BinDateRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting the postcode form
 		if (clientSideResponse == null)
 		{
 			var clientSideRequest = new ClientSideRequest
@@ -117,7 +86,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getAddressesResponse;
 		}
-		// Prepare client-side request for searching addresses by postcode
 		else if (clientSideResponse.RequestId == 1)
 		{
 			var formBuildId = FormBuildIdRegex().Match(clientSideResponse.Content).Groups["formBuildId"].Value;
@@ -130,7 +98,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getAddressesResponse;
 		}
-		// Process addresses from response
 		else if (clientSideResponse.RequestId == 2)
 		{
 			using var jsonDocument = JsonDocument.Parse(clientSideResponse.Content);
@@ -148,9 +115,8 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 				break;
 			}
 
-			var rawAddresses = AddressRegex().Matches(insertHtml)!;
+			var rawAddresses = AddressRegex().Matches(insertHtml);
 
-			// Iterate through each address, and create a new address object
 			var addresses = new List<Address>();
 			foreach (Match rawAddress in rawAddresses)
 			{
@@ -185,7 +151,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting the postcode form
 		if (clientSideResponse == null)
 		{
 			var clientSideRequest = new ClientSideRequest
@@ -202,7 +167,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getBinDaysResponse;
 		}
-		// Prepare client-side request for searching addresses by postcode
 		else if (clientSideResponse.RequestId == 1)
 		{
 			var formBuildId = FormBuildIdRegex().Match(clientSideResponse.Content).Groups["formBuildId"].Value;
@@ -216,7 +180,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getBinDaysResponse;
 		}
-		// Prepare client-side request for confirming the selected address
 		else if (clientSideResponse.RequestId == 2)
 		{
 			var formBuildId = ExtractUpdatedFormBuildId(clientSideResponse.Content);
@@ -252,7 +215,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getBinDaysResponse;
 		}
-		// Prepare client-side request for submitting the selected address
 		else if (clientSideResponse.RequestId == 3)
 		{
 			var formBuildId = ExtractUpdatedFormBuildId(clientSideResponse.Content);
@@ -286,7 +248,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getBinDaysResponse;
 		}
-		// Prepare client-side request for loading the collection dates page
 		else if (clientSideResponse.RequestId == 4)
 		{
 			var redirectUrl = clientSideResponse.Headers["location"];
@@ -305,18 +266,16 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 			return getBinDaysResponse;
 		}
-		// Process bin days from response
 		else if (clientSideResponse.RequestId == 5)
 		{
-			var rawBinTypeSections = BinTypeSectionRegex().Matches(clientSideResponse.Content)!;
+			var rawBinTypeSections = BinTypeSectionRegex().Matches(clientSideResponse.Content);
 
-			// Iterate through each bin section, and create a new bin day object
 			var binDays = new List<BinDay>();
 			foreach (Match rawBinTypeSection in rawBinTypeSections)
 			{
 				var service = rawBinTypeSection.Groups["service"].Value.Trim();
 				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
-				var rawDates = BinDateRegex().Matches(rawBinTypeSection.Groups["dates"].Value)!;
+				var rawDates = BinDateRegex().Matches(rawBinTypeSection.Groups["dates"].Value);
 
 				foreach (Match rawDate in rawDates)
 				{
@@ -324,7 +283,7 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 
 					var binDay = new BinDay
 					{
-						Date = DateUtilities.ParseDateExact(collectionDate, "dd MMMM yyyy"),
+						Date = DateUtilities.ParseDateExact(collectionDate, "d MMMM yyyy"),
 						Address = address,
 						Bins = matchedBins,
 					};
@@ -344,9 +303,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
-	/// <summary>
-	/// Creates an AJAX request for searching addresses by postcode.
-	/// </summary>
 	private static ClientSideRequest CreateAddressSearchRequest(int requestId, string postcode, string formBuildId)
 	{
 		var clientSideRequest = new ClientSideRequest
@@ -373,9 +329,6 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 		return clientSideRequest;
 	}
 
-	/// <summary>
-	/// Extracts the updated form build id from a Drupal AJAX response.
-	/// </summary>
 	private static string ExtractUpdatedFormBuildId(string content)
 	{
 		using var jsonDocument = JsonDocument.Parse(content);
