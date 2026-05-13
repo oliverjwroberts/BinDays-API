@@ -8,6 +8,9 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+/// <summary>
+/// Collector implementation for North Lanarkshire Council.
+/// </summary>
 internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICollector
 {
 	/// <inheritdoc/>
@@ -19,6 +22,9 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 	/// <inheritdoc/>
 	public override string GovUkId => "north-lanarkshire";
 
+	/// <summary>
+	/// The list of bin types for this collector.
+	/// </summary>
 	private readonly IReadOnlyCollection<Bin> _binTypes =
 	[
 		new()
@@ -47,23 +53,47 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 		},
 	];
 
+	/// <summary>
+	/// The URL of the bin collection dates page.
+	/// </summary>
 	private const string _binCollectionUrl = "https://www.northlanarkshire.gov.uk/bin-collection-dates";
 
+	/// <summary>
+	/// The AJAX URL for the address finder form.
+	/// </summary>
 	private const string _addressFinderAjaxUrl = "https://www.northlanarkshire.gov.uk/bin-collection-dates?element_parents=address_finder&ajax_form=1&_wrapper_format=drupal_ajax";
 
+	/// <summary>
+	/// The Drupal form ID for the address finder form.
+	/// </summary>
 	private const string _formId = "ace_bin_collection_dates_address_finder_form";
 
+	/// <summary>
+	/// The triggering element name for the postcode search button.
+	/// </summary>
 	private const string _postcodeSearchTrigger = "address_finder_postcode_search_button";
 
+	/// <summary>
+	/// Regex for the form build ID from the HTML response.
+	/// </summary>
 	[GeneratedRegex(@"name=""form_build_id""\s+value=""(?<formBuildId>[^""]+)""")]
 	private static partial Regex FormBuildIdRegex();
 
+	/// <summary>
+	/// Regex for the addresses from the HTML response.
+	/// </summary>
 	[GeneratedRegex(@"<option value=""(?<uid>[^""]*)"">(?<address>[^<]+)</option>")]
 	private static partial Regex AddressRegex();
 
+	/// <summary>
+	/// Regex for the bin type sections from the HTML response.
+	/// </summary>
 	[GeneratedRegex(@"<div class=""waste-type-container[^""]*"">\s*<div>\s*<h3>(?<service>[^<]+)</h3>[\s\S]*?(?<dates>(?:\s*<p>\d{1,2}\s+[A-Za-z]+\s+\d{4}</p>\s*)+)[\s\S]*?</div>\s*</div>")]
 	private static partial Regex BinTypeSectionRegex();
 
+	/// <summary>
+	/// Regex for the bin collection dates from the HTML response.
+	/// </summary>
 	[GeneratedRegex(@"<p>(?<date>\d{1,2}\s+[A-Za-z]+\s+\d{4})</p>")]
 	private static partial Regex BinDateRegex();
 
@@ -303,6 +333,9 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
+	/// <summary>
+	/// Creates a client-side request for searching addresses by postcode.
+	/// </summary>
 	private static ClientSideRequest CreateAddressSearchRequest(int requestId, string postcode, string formBuildId)
 	{
 		var clientSideRequest = new ClientSideRequest
@@ -329,6 +362,9 @@ internal sealed partial class NorthLanarkshireCouncil : GovUkCollectorBase, ICol
 		return clientSideRequest;
 	}
 
+	/// <summary>
+	/// Extracts the updated form build ID from a Drupal AJAX response.
+	/// </summary>
 	private static string ExtractUpdatedFormBuildId(string content)
 	{
 		using var jsonDocument = JsonDocument.Parse(content);
