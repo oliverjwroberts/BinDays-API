@@ -145,7 +145,7 @@ internal sealed partial class RenfrewshireCouncil : GovUkCollectorBase, ICollect
 		// Process bin days from response
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var collectionsJson = CollectionsDataRegex().Match(clientSideResponse.Content).Groups["collectionsData"].Value;
+			var collectionsJson = CollectionsDataRegex().Match(clientSideResponse.Content)!.Groups["collectionsData"].Value;
 			using var jsonDocument = JsonDocument.Parse(collectionsJson);
 
 			// Iterate through each collection date, and create a new bin day object
