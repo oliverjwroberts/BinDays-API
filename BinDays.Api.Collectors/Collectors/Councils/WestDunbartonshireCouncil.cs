@@ -98,12 +98,7 @@ internal sealed partial class WestDunbartonshireCouncil : GovUkCollectorBase, IC
 			var addresses = new List<Address>();
 			foreach (Match rawAddress in rawAddresses)
 			{
-				var uid = rawAddress.Groups["uid"].Value.Trim();
-
-				if (string.IsNullOrWhiteSpace(uid))
-				{
-					continue;
-				}
+				var uid = rawAddress.Groups["uid"].Value;
 
 				var address = new Address
 				{
@@ -123,6 +118,7 @@ internal sealed partial class WestDunbartonshireCouncil : GovUkCollectorBase, IC
 			return getAddressesResponse;
 		}
 
+		// Throw exception for invalid request
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
@@ -189,6 +185,7 @@ internal sealed partial class WestDunbartonshireCouncil : GovUkCollectorBase, IC
 			return getBinDaysResponse;
 		}
 
+		// Throw exception for invalid request
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 }
