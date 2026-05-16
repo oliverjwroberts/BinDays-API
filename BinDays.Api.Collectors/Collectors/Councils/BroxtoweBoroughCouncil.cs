@@ -141,6 +141,10 @@ internal sealed partial class BroxtoweBoroughCouncil : GovUkCollectorBase, IColl
 				{
 					continue;
 				}
+				else if (!uid.StartsWith("U100", StringComparison.Ordinal))
+				{
+					continue;
+				}
 
 				var property = WebUtility.HtmlDecode(rawAddress.Groups["address"].Value).Trim();
 
