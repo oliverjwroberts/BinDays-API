@@ -26,7 +26,8 @@ public class BroxtoweBoroughCouncilTests
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper
+			_outputHelper,
+			addressIndex: 1
 		);
 	}
 }
