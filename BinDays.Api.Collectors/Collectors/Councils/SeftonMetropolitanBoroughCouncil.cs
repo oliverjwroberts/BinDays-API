@@ -358,9 +358,9 @@ internal sealed partial class SeftonMetropolitanBoroughCouncil : GovUkCollectorB
 		else if (clientSideResponse.RequestId == 4)
 		{
 			var existingCookie = clientSideResponse.Options.Metadata["cookie"];
-			var redirectCookieHeader = clientSideResponse.Headers["set-cookie"];
-			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader);
-			var mergedCookie = $"{existingCookie}; {redirectCookie}";
+			clientSideResponse.Headers.TryGetValue("set-cookie", out var redirectCookieHeader);
+			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader ?? string.Empty);
+			var mergedCookie = string.IsNullOrEmpty(redirectCookie) ? existingCookie : $"{existingCookie}; {redirectCookie}";
 
 			var clientSideRequest = new ClientSideRequest
 			{
