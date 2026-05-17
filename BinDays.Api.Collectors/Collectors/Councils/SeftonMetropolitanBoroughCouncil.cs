@@ -147,8 +147,8 @@ internal sealed partial class SeftonMetropolitanBoroughCouncil : GovUkCollectorB
 		else if (clientSideResponse.RequestId == 2)
 		{
 			var antiforgery = clientSideResponse.Options.Metadata["cookie"];
-			clientSideResponse.Headers.TryGetValue("set-cookie", out var redirectCookieHeader);
-			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader!);
+			var redirectCookieHeader = clientSideResponse.Headers["set-cookie"];
+			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader);
 			var mergedCookie = $"{antiforgery}; {redirectCookie}";
 
 			var clientSideRequest = new ClientSideRequest
@@ -278,8 +278,8 @@ internal sealed partial class SeftonMetropolitanBoroughCouncil : GovUkCollectorB
 		else if (clientSideResponse.RequestId == 2)
 		{
 			var antiforgery = clientSideResponse.Options.Metadata["cookie"];
-			clientSideResponse.Headers.TryGetValue("set-cookie", out var redirectCookieHeader);
-			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader!);
+			var redirectCookieHeader = clientSideResponse.Headers["set-cookie"];
+			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader);
 			var mergedCookie = $"{antiforgery}; {redirectCookie}";
 
 			var clientSideRequest = new ClientSideRequest
@@ -358,8 +358,8 @@ internal sealed partial class SeftonMetropolitanBoroughCouncil : GovUkCollectorB
 		else if (clientSideResponse.RequestId == 4)
 		{
 			var existingCookie = clientSideResponse.Options.Metadata["cookie"];
-			clientSideResponse.Headers.TryGetValue("set-cookie", out var redirectCookieHeader);
-			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader!);
+			var redirectCookieHeader = clientSideResponse.Headers["set-cookie"];
+			var redirectCookie = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(redirectCookieHeader);
 			var mergedCookie = $"{existingCookie}; {redirectCookie}";
 
 			var clientSideRequest = new ClientSideRequest
