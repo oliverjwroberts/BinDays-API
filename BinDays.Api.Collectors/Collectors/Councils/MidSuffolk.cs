@@ -26,8 +26,7 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 	/// <summary>
 	/// The list of bin types for this collector.
 	/// </summary>
-	private readonly IReadOnlyCollection<Bin> _binTypes =
-	[
+	private readonly IReadOnlyCollection<Bin> _binTypes = [
 		new()
 		{
 			Name = "General Waste",
@@ -209,7 +208,7 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 			var portletNamespace = PortletNamespaceRegex().Match(clientSideResponse.Content).Groups["portletNamespace"].Value;
 			var formContext = FormContextRegex().Match(clientSideResponse.Content).Groups["formContext"].Value;
 
-			var addressValue = $$"""{"postcode":"{{address.Postcode!}}","fullAddress":"{{address.Property!}}","uprn":"{{address.Uid!}}"}""";
+			var addressValue = JsonSerializer.Serialize(new { postcode = address.Postcode!, fullAddress = address.Property!, uprn = address.Uid! });
 			var formContextJson = JsonNode.Parse(formContext)!.AsObject();
 			var rows = formContextJson["pages"]![0]!["rows"]!.AsArray();
 
@@ -351,7 +350,7 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 				}
 
 				var matchedBinTypes = ProcessingUtilities.GetMatchingBins(_binTypes, service);
-				var date = DateUtilities.ParseDateExact(collectionDate, "ddd dd MMM yyyy");
+				var date = DateUtilities.ParseDateExact(collectionDate, "ddd d MMM yyyy");
 
 				var binDay = new BinDay
 				{
