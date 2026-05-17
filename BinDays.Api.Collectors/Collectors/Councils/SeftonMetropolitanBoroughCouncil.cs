@@ -108,6 +108,7 @@ internal sealed partial class SeftonMetropolitanBoroughCouncil : GovUkCollectorB
 			var body = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
 				{ "Postcode", postcode },
+				{ "Streetname", "" },
 				{ "__RequestVerificationToken", token },
 				{ "ufprt", ufprt },
 			});
@@ -238,6 +239,7 @@ internal sealed partial class SeftonMetropolitanBoroughCouncil : GovUkCollectorB
 			var body = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
 				{ "Postcode", address.Postcode! },
+				{ "Streetname", "" },
 				{ "__RequestVerificationToken", token },
 				{ "ufprt", ufprt },
 			});
