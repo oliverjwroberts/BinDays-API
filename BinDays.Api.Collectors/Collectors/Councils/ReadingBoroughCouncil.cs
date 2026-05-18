@@ -35,7 +35,7 @@ internal sealed class ReadingBoroughCouncil : GovUkCollectorBase, ICollector
 		new()
 		{
 			Name = "Mixed Recycling",
-			Colour = BinColour.Green,
+			Colour = BinColour.Red,
 			Keys = [ "Bulk Recycling" ],
 		},
 		new()
@@ -44,6 +44,12 @@ internal sealed class ReadingBoroughCouncil : GovUkCollectorBase, ICollector
 			Colour = BinColour.Grey,
 			Keys = [ "Food Waste Collection Service" ],
 			Type = BinType.Caddy,
+		},
+		new()
+		{
+			Name = "Garden Waste",
+			Colour = BinColour.Green,
+			Keys = [ "Garden Waste Collection Service" ],
 		},
 	];
 
