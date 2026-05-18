@@ -20,14 +20,15 @@ public class ReadingBoroughCouncilTests
 
 	[Theory]
 	[InlineData("RG1 3FJ")]
-	[InlineData("RG31 6JP")]
-	public async Task GetBinDaysTest(string postcode)
+	[InlineData("RG31 6JP", 11)]
+	public async Task GetBinDaysTest(string postcode, int addressIndex = 0)
 	{
 		await TestSteps.EndToEnd(
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper
+			_outputHelper,
+			addressIndex
 		);
 	}
 }
