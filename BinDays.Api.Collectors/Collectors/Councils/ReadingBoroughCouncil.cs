@@ -34,9 +34,9 @@ internal sealed class ReadingBoroughCouncil : GovUkCollectorBase, ICollector
 		},
 		new()
 		{
-			Name = "Mixed Recycling",
+			Name = "Recycling",
 			Colour = BinColour.Red,
-			Keys = [ "Bulk Recycling" ],
+			Keys = [ "Recycling" ],
 		},
 		new()
 		{
