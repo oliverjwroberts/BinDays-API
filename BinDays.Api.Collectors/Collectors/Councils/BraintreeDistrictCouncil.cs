@@ -222,11 +222,6 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 
 				var matchedBinTypes = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 
-				if (matchedBinTypes.Count == 0)
-				{
-					throw new InvalidOperationException($"No matching bin type found for service '{service}'.");
-				}
-
 				var binDay = new BinDay
 				{
 					Date = DateUtilities.ParseDateExact(collectionDate, "dd/MM/yyyy"),
