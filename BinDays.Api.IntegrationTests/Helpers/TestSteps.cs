@@ -60,7 +60,7 @@ internal static class TestSteps
 			try
 			{
 				collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
-				await Task.Delay(TimeSpan.FromMilliseconds(500));
+				await Task.Delay(TimeSpan.FromMilliseconds(1000));
 			}
 			finally
 			{
