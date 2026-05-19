@@ -75,8 +75,6 @@ jobs:
 
       - name: Run integration tests
         continue-on-error: true
-        env:
-          BINDAYS_TEST_RETRIES: 1
         run: |
           FILTER="${{ steps.filter.outputs.filter }}"
           FILTER_ARG=""

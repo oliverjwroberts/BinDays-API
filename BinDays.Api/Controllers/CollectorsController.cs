@@ -158,6 +158,11 @@ public class CollectorsController : ControllerBase
 			_logger.LogWarning(ex, "No supported collector found for gov.uk ID: {GovUkId}, postcode: {Postcode}.", ex.GovUkId, postcode);
 			return NotFound("No supported collector found for the specified postcode.");
 		}
+		catch (GovUkRateLimitedException ex)
+		{
+			_logger.LogWarning(ex, "Rate limited by gov.uk for postcode: {Postcode}.", postcode);
+			return StatusCode(StatusCodes.Status429TooManyRequests, "Temporarily rate-limited by gov.uk. Please try again later.");
+		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "An unexpected error occurred while retrieving collector for postcode: {Postcode}.", postcode);

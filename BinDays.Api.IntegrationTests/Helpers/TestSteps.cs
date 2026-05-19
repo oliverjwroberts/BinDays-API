@@ -1,6 +1,7 @@
 namespace BinDays.Api.IntegrationTests.Helpers;
 
 using BinDays.Api.Collectors.Models;
+using System.Collections.Concurrent;
 using Xunit.Abstractions;
 
 /// <summary>
@@ -9,9 +10,9 @@ using Xunit.Abstractions;
 internal static class TestSteps
 {
 	/// <summary>
-	/// Limits concurrent gov.uk postcode lookups to avoid rate limiting.
+	/// Caches resolved collectors by normalised postcode to avoid repeat gov.uk lookups within a test run.
 	/// </summary>
-	private static readonly SemaphoreSlim _govUkSemaphore = new(1, 1);
+	private static readonly ConcurrentDictionary<string, TestCollector> _collectorCache = new();
 
 	/// <summary>
 	/// Executes the full end-to-end test cycle by posting to the real API endpoints.
@@ -29,15 +30,13 @@ internal static class TestSteps
 		ITestOutputHelper outputHelper,
 		int addressIndex = 0)
 	{
-		var retries = int.TryParse(Environment.GetEnvironmentVariable("BINDAYS_TEST_RETRIES"), out var r) ? r : 0;
-
 		await EndToEndAsync(
 			client,
 			postcode,
 			expectedGovUkId,
 			outputHelper,
 			addressIndex,
-			retries
+			maxRetries: 5
 		);
 	}
 
@@ -50,22 +49,13 @@ internal static class TestSteps
 		string expectedGovUkId,
 		ITestOutputHelper outputHelper,
 		int addressIndex,
-		int retriesRemaining)
+		int maxRetries,
+		int attempt = 0)
 	{
 		try
 		{
 			// Step 1: Get Collector
-			await _govUkSemaphore.WaitAsync();
-			TestCollector collector;
-			try
-			{
-				collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
-				await Task.Delay(TimeSpan.FromMilliseconds(1000));
-			}
-			finally
-			{
-				_govUkSemaphore.Release();
-			}
+			var collector = await GetCollectorAsync(client, postcode, expectedGovUkId);
 
 			// Step 2: Get Addresses
 			var addresses = await GetAddressesAsync(client, expectedGovUkId, postcode);
@@ -80,19 +70,25 @@ internal static class TestSteps
 			);
 
 			// Step 4: Output Summary
-			TestOutput.WriteTestSummary(outputHelper, collector, addresses, binDays);
+			TestOutput.WriteTestSummary(
+				outputHelper,
+				collector,
+				addresses,
+				binDays
+			);
 		}
-		catch (Exception ex) when (retriesRemaining > 0)
+		catch (Exception ex) when (attempt < maxRetries)
 		{
-			outputHelper.WriteLine($"[Retry {retriesRemaining}] {ex.Message}");
-			await Task.Delay(TimeSpan.FromSeconds(5));
+			outputHelper.WriteLine($"[Retry {attempt + 1}] {ex.Message}");
+			await Task.Delay(TimeSpan.FromSeconds(5 * (int)Math.Pow(2, attempt)));
 			await EndToEndAsync(
 				client,
 				postcode,
 				expectedGovUkId,
 				outputHelper,
 				addressIndex,
-				retriesRemaining - 1
+				maxRetries,
+				attempt + 1
 			);
 		}
 	}
@@ -105,6 +101,12 @@ internal static class TestSteps
 		string postcode,
 		string expectedGovUkId)
 	{
+		var cacheKey = postcode.ToUpperInvariant().Replace(" ", "");
+		if (_collectorCache.TryGetValue(cacheKey, out var cached))
+		{
+			return cached;
+		}
+
 		var response = await client.ExecuteRequestCycleAsync<TestGetCollectorResponse>(
 			$"/collector?postcode={postcode}",
 			resp => resp.NextClientSideRequest
@@ -112,7 +114,10 @@ internal static class TestSteps
 
 		TestValidation.ValidateCollectorResult(response.Collector, expectedGovUkId);
 
-		return response.Collector!;
+		var collector = response.Collector!;
+		_collectorCache[cacheKey] = collector;
+
+		return collector;
 	}
 
 	/// <summary>

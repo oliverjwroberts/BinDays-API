@@ -82,6 +82,11 @@ internal abstract partial class GovUkCollectorBase
 		// Process collector from response
 		else if (clientSideResponse.RequestId == 1)
 		{
+			if (clientSideResponse.StatusCode == 429)
+			{
+				throw new GovUkRateLimitedException(postcode);
+			}
+
 			if (InvalidPostcodeRegex().IsMatch(clientSideResponse.Content))
 			{
 				throw new InvalidPostcodeException(postcode);
@@ -126,6 +131,11 @@ internal abstract partial class GovUkCollectorBase
 		// Prepare client-side request for getting collector
 		else if (clientSideResponse.RequestId == 2)
 		{
+			if (clientSideResponse.StatusCode == 429)
+			{
+				throw new GovUkRateLimitedException(postcode);
+			}
+
 			var collector = ExtractCollector(collectorService, postcode, clientSideResponse);
 
 			var getCollectorResponse = new GetCollectorResponse
