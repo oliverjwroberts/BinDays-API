@@ -27,6 +27,11 @@ internal abstract partial class GovUkCollectorBase
 	public virtual Uri GovUkUrl => new($"{_govUkBaseUrl}/{GovUkId}");
 
 	/// <summary>
+	/// Gets the version of this collector, incremented when a breaking change is made (e.g. address UID format).
+	/// </summary>
+	public virtual int Version => 1;
+
+	/// <summary>
 	/// Regex for the gov.uk ID from the first address.
 	/// </summary>
 	[GeneratedRegex(@"<option value=""(?<GovUkId>[^""]+)""")]

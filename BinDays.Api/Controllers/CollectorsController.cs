@@ -232,12 +232,30 @@ public class CollectorsController : ControllerBase
 	/// <param name="postcode">The postcode of the address.</param>
 	/// <param name="uid">The unique identifier of the address.</param>
 	/// <param name="clientSideResponse">The response from a previous client-side request, if applicable.</param>
+	/// <param name="version">The version of the collector.</param>
 	/// <returns>A response containing bin days, or an error response.</returns>
 	[HttpPost]
 	[Route("/{govUkId}/bin-days")]
-	public IActionResult GetBinDays(string govUkId, string postcode, string uid, [FromBody] ClientSideResponse? clientSideResponse)
+	public IActionResult GetBinDays(string govUkId, string postcode, string uid, [FromBody] ClientSideResponse? clientSideResponse, int version = 1)
 	{
 		postcode = ProcessingUtilities.FormatPostcode(postcode);
+
+		// Check if the user is sending a request compatible with an old collector version.
+		// Returns 410 (gone) response code to prompt user re-selection.
+		try
+		{
+			var collector = _collectorService.GetCollector(govUkId);
+			if (version != collector.Version)
+			{
+				_logger.LogInformation("Collector version mismatch for gov.uk ID: {GovUkId}, client: {ClientVersion}, current: {CurrentVersion}.", govUkId, version, collector.Version);
+				return StatusCode(StatusCodes.Status410Gone, "The collector version is out of date.");
+			}
+		}
+		catch (SupportedCollectorNotFoundException ex)
+		{
+			_logger.LogWarning(ex, "No supported collector found for gov.uk ID: {GovUkId}.", govUkId);
+			return NotFound("No supported collector found for the specified gov.uk ID.");
+		}
 
 		var cacheKey = $"bin-days-{govUkId}-{FormatPostcodeForCacheKey(postcode)}-{uid}";
 		var cachedResponse = TryGetFromCache<GetBinDaysResponse>(cacheKey);

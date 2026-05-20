@@ -28,6 +28,11 @@ public interface ICollector
 	public Uri GovUkUrl { get; }
 
 	/// <summary>
+	/// Gets the version of this collector, incremented when a breaking change is made (e.g. address UID format).
+	/// </summary>
+	public int Version { get; }
+
+	/// <summary>
 	/// Gets the addresses for a given postcode, potentially requiring multiple steps via client-side responses.
 	/// </summary>
 	/// <param name="postcode">The postcode to search for.</param>
