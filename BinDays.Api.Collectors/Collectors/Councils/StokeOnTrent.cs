@@ -154,23 +154,10 @@ internal sealed partial class StokeOnTrent : GovUkCollectorBase, ICollector
 			foreach (Match rawBinRound in rawBinRounds)
 			{
 				var service = rawBinRound.Groups["service"].Value.Trim();
-				var collectionDate = rawBinRound.Groups["date"].Value.Trim();
+				var collectionDate = rawBinRound.Groups["date"].Value.Trim().Split(" ").First();
 				var matchedBinTypes = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 
-				if (matchedBinTypes.Count == 0)
-				{
-					continue;
-				}
-
-				DateOnly date;
-				if (collectionDate.Contains(' '))
-				{
-					date = DateUtilities.ParseDateExact(collectionDate, "dd/MM/yyyy HH:mm:ss");
-				}
-				else
-				{
-					date = DateUtilities.ParseDateExact(collectionDate, "dd/MM/yyyy");
-				}
+				var date = DateUtilities.ParseDateExact(collectionDate, "dd/MM/yyyy");
 
 				var binDay = new BinDay
 				{
