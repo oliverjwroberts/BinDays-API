@@ -19,7 +19,7 @@ public class StokeOnTrentTests
 	}
 
 	[Theory]
-	[InlineData("ST6 8AZ")]
+	[InlineData("ST3 6HR")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(

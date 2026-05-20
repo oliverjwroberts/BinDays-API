@@ -39,6 +39,18 @@ internal sealed partial class StokeOnTrent : GovUkCollectorBase, ICollector
 			Colour = BinColour.Blue,
 			Keys = [ "EMPTY BINS REC 240 STD" ],
 		},
+		new()
+		{
+			Name = "Garden Waste",
+			Colour = BinColour.Brown,
+			Keys = [ "GDN", "GARDEN" ],
+		},
+		new()
+		{
+			Name = "Food Waste",
+			Colour = BinColour.Green,
+			Keys = [ "FOOD" ],
+		},
 	];
 
 	/// <summary>
