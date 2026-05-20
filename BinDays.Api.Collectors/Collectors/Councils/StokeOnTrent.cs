@@ -31,7 +31,7 @@ internal sealed partial class StokeOnTrent : GovUkCollectorBase, ICollector
 		{
 			Name = "General Waste",
 			Colour = BinColour.Grey,
-			Keys = [ "EMPTY BINS RESIDUAL BIN", "EMPTY BINS RES 240 STD" ],
+			Keys = [ "EMPTY BINS RESIDUAL BIN" ],
 		},
 		new()
 		{
@@ -43,13 +43,14 @@ internal sealed partial class StokeOnTrent : GovUkCollectorBase, ICollector
 		{
 			Name = "Garden Waste",
 			Colour = BinColour.Brown,
-			Keys = [ "GDN", "GARDEN" ],
+			Keys = [ "EMPTY BINS ORG 240 STD" ],
 		},
 		new()
 		{
 			Name = "Food Waste",
-			Colour = BinColour.Green,
-			Keys = [ "FOOD" ],
+			Colour = BinColour.Grey,
+			Keys = [ "EMPTY BINS EXT FOOD WASTE CADDY" ],
+			Type = BinType.Caddy,
 		},
 	];
 

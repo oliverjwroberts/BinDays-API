@@ -19,14 +19,16 @@ public class StokeOnTrentTests
 	}
 
 	[Theory]
-	[InlineData("ST3 6HR")]
-	public async Task GetBinDaysTest(string postcode)
+	[InlineData("ST3 6HR", 0)]
+	[InlineData("ST3 6HR", 29)]
+	public async Task GetBinDaysTest(string postcode, int addressIndex = 0)
 	{
 		await TestSteps.EndToEnd(
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper
+			_outputHelper,
+			addressIndex
 		);
 	}
 }
