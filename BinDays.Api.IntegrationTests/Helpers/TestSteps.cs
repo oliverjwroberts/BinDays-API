@@ -2,6 +2,7 @@ namespace BinDays.Api.IntegrationTests.Helpers;
 
 using BinDays.Api.Collectors.Models;
 using System.Collections.Concurrent;
+using System.Net;
 using Xunit.Abstractions;
 
 /// <summary>
@@ -36,7 +37,7 @@ internal static class TestSteps
 			expectedGovUkId,
 			outputHelper,
 			addressIndex,
-			maxRetries: 5
+			maxRetries: 6
 		);
 	}
 
@@ -77,10 +78,26 @@ internal static class TestSteps
 				binDays
 			);
 		}
-		catch (Exception ex) when (attempt < maxRetries)
+		catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxRetries)
 		{
-			outputHelper.WriteLine($"[Retry {attempt + 1}] {ex.Message}");
-			await Task.Delay(TimeSpan.FromSeconds(5 * (int)Math.Pow(2, attempt)));
+			// 409 Conflict: retry with exponential backoff
+			var delay = TimeSpan.FromSeconds(5 * (int)Math.Pow(2, attempt));
+			outputHelper.WriteLine($"[Retry {attempt + 1}/{maxRetries}] 409 Conflict — backing off for {delay.TotalSeconds}s. {ex.Message}");
+			await Task.Delay(delay);
+			await EndToEndAsync(
+				client,
+				postcode,
+				expectedGovUkId,
+				outputHelper,
+				addressIndex,
+				maxRetries,
+				attempt + 1
+			);
+		}
+		catch (Exception ex) when (attempt < 1)
+		{
+			// General exception: retry once only for flaky tests
+			outputHelper.WriteLine($"[Retry 1/1] {ex.Message}");
 			await EndToEndAsync(
 				client,
 				postcode,
