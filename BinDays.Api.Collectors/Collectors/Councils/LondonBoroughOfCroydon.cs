@@ -36,13 +36,13 @@ internal sealed partial class LondonBoroughOfCroydon : GovUkCollectorBase, IColl
 		new()
 		{
 			Name = "Glass, Plastics, Cans, & Cartons Recycling",
-			Colour = BinColour.Blue,
+			Colour = BinColour.Green,
 			Keys = [ "Glass, plastics, cans and cartons recycling" ],
 		},
 		new()
 		{
 			Name = "Paper and Card Recycling",
-			Colour = BinColour.Green,
+			Colour = BinColour.Blue,
 			Keys = [ "Paper and card recycling" ],
 		},
 		new()
