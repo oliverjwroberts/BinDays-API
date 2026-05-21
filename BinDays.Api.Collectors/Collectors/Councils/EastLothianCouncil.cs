@@ -227,7 +227,9 @@ internal sealed partial class EastLothianCouncil : GovUkCollectorBase, ICollecto
 					continue;
 				}
 
-				if (line != "END:VEVENT" || !summary.Contains("lidded containers for", StringComparison.Ordinal))
+				if (line != "END:VEVENT"
+					|| !summary.Contains("lidded", StringComparison.OrdinalIgnoreCase)
+					|| !summary.Contains(" for ", StringComparison.Ordinal))
 				{
 					continue;
 				}
