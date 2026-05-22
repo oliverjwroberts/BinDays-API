@@ -39,6 +39,19 @@ internal sealed partial class RoyalBoroughOfWindsorAndMaidenhead : GovUkCollecto
 			Colour = BinColour.Blue,
 			Keys = [ "Recycling Collection Service" ],
 		},
+		new()
+		{
+			Name = "Garden Waste",
+			Colour = BinColour.Green,
+			Keys = [ "Garden Waste Collection Service" ],
+		},
+		new()
+		{
+			Name = "Food Waste",
+			Colour = BinColour.Grey,
+			Keys = [ "Recycling Collection Service" ],
+			Type = BinType.Caddy,
+		},
 	];
 
 	/// <summary>

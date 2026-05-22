@@ -19,7 +19,7 @@ public class RoyalBoroughOfWindsorAndMaidenheadTests
 	}
 
 	[Theory]
-	[InlineData("SL4 1JB")]
+	[InlineData("SL6 1XG")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
