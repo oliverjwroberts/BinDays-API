@@ -44,6 +44,12 @@ internal sealed class SheffieldCityCouncil : GovUkCollectorBase, ICollector
 			Colour = BinColour.Brown,
 			Keys = [ "Brown Bin" ],
 		},
+		new()
+		{
+			Name = "Garden Waste",
+			Colour = BinColour.Green,
+			Keys = [ "Green Bin" ],
+		},
 	];
 
 	/// <summary>
