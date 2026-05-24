@@ -19,4 +19,7 @@ internal sealed class SouthOxfordshireDistrictCouncil : BinzoneCollectorBase, IC
 
 	/// <inheritdoc/>
 	protected override string CouncilCode => "S";
+
+	/// <inheritdoc/>
+	protected override string CalendarUrl => "https://www.southoxon.gov.uk/south-oxfordshire-district-council/recycling-rubbish-and-waste/when-is-your-collection-day/waste-collections-calendar/";
 }
