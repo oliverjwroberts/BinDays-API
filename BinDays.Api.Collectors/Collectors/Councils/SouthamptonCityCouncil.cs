@@ -49,6 +49,13 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 			Colour = BinColour.Brown,
 			Keys = [ "Garden" ],
 		},
+		new()
+		{
+			Name = "Food Waste",
+			Colour = BinColour.Brown,
+			Keys = [ "Food" ],
+			Type = BinType.Caddy,
+		},
 	];
 
 	/// <summary>
