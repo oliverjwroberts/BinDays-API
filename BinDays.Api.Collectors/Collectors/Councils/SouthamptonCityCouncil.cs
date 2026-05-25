@@ -131,8 +131,13 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 			{
 				{ "user-agent", Constants.UserAgent },
 				{ "content-type", Constants.FormUrlEncoded },
-				{ "cookie", ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]) },
 			};
+
+			var setCookieHeader = clientSideResponse.Headers.GetValueOrDefault("set-cookie");
+			if (!string.IsNullOrEmpty(setCookieHeader))
+			{
+				requestHeaders["cookie"] = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
+			}
 
 			var clientSideRequest = new ClientSideRequest
 			{
