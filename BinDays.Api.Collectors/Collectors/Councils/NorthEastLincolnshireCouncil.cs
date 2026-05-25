@@ -109,7 +109,7 @@ internal sealed partial class NorthEastLincolnshireCouncil : GovUkCollectorBase,
 				{
 					Property = WebUtility.HtmlDecode(rawAddress.Groups["address"].Value).Trim(),
 					Postcode = postcode,
-					Uid = rawAddress.Groups["uid"].Value,
+					Uid = rawAddress.Groups["uid"].Value.Trim(),
 				};
 
 				addresses.Add(address);

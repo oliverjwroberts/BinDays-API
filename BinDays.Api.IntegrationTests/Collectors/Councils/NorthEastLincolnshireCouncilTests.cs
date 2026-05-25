@@ -19,7 +19,7 @@ public class NorthEastLincolnshireCouncilTests
 	}
 
 	[Theory]
-	[InlineData("DN332JU")]
+	[InlineData("DN33 2JU")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
