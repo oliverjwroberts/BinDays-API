@@ -26,8 +26,7 @@ public class NorthEastLincolnshireCouncilTests
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper,
-			addressIndex: 0
+			_outputHelper
 		);
 	}
 }

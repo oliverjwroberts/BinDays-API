@@ -45,6 +45,12 @@ internal sealed partial class NorthEastLincolnshireCouncil : GovUkCollectorBase,
 			Colour = BinColour.Black,
 			Keys = [ "Cans, Plastic & Glass" ],
 		},
+		new()
+		{
+			Name = "Garden Waste",
+			Colour = BinColour.Brown,
+			Keys = [ "Garden" ],
+		}
 	];
 
 	/// <summary>
