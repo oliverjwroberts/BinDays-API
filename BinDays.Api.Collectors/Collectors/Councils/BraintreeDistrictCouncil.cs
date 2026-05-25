@@ -101,7 +101,7 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 	/// <summary>
 	/// Regex for extracting the CSRF token from the form page.
 	/// </summary>
-	[GeneratedRegex(@"name=""__token"" value=""([^""]+)""")]
+	[GeneratedRegex(@"name=""__token"" value=""(?<token>[^""]+)""")]
 	private static partial Regex TokenRegex();
 
 	/// <summary>
@@ -137,7 +137,7 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 		// Prepare client-side request for address lookup
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var token = TokenRegex().Match(clientSideResponse.Content).Groups[1].Value;
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
 
 			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
@@ -222,7 +222,7 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 		// Prepare client-side request for getting bin days
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var token = TokenRegex().Match(clientSideResponse.Content).Groups[1].Value;
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
 
 			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
