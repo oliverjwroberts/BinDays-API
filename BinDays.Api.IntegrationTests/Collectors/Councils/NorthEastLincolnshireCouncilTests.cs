@@ -19,7 +19,7 @@ public class NorthEastLincolnshireCouncilTests
 	}
 
 	[Theory]
-	[InlineData("DN402FD")]
+	[InlineData("DN332JU")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
@@ -27,7 +27,7 @@ public class NorthEastLincolnshireCouncilTests
 			postcode,
 			_govUkId,
 			_outputHelper,
-			addressIndex: 6
+			addressIndex: 0
 		);
 	}
 }
