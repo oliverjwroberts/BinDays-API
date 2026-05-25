@@ -32,6 +32,7 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 			Colour = BinColour.Grey,
 			Keys =
 			[
+				"General Waste",
 				"Grey Bin",
 				"Black Bin",
 			],
@@ -39,27 +40,32 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 		new()
 		{
 			Name = "Mixed Recycling",
-			Colour = BinColour.White,
-			Keys = [ "Clear Sack" ],
-			Type = BinType.Sack,
-		},
-		new()
-		{
-			Name = "Card and Paper Recycling",
 			Colour = BinColour.Blue,
-			Keys = [ "Blue Bin" ],
+			Keys =
+			[
+				"Mixed Recycling",
+				"Clear Sack",
+			],
 		},
 		new()
 		{
-			Name = "Glass and Metal Recycling",
+			Name = "Paper and Card",
 			Colour = BinColour.Red,
-			Keys = [ "Red Bin" ],
+			Keys =
+			[
+				"Paper and Card",
+				"Blue Bin",
+			],
 		},
 		new()
 		{
 			Name = "Food Waste",
 			Colour = BinColour.Green,
-			Keys = [ "Food Bin" ],
+			Keys =
+			[
+				"Food Recycling",
+				"Food Bin",
+			],
 			Type = BinType.Caddy,
 		},
 		new()
@@ -93,6 +99,12 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 	private const string _postcodeFieldName = "qe15dda0155d237d1ea161004d1839e3369ed4831_0_0";
 
 	/// <summary>
+	/// Regex for extracting the CSRF token from the form page.
+	/// </summary>
+	[GeneratedRegex(@"name=""__token"" value=""([^""]+)""")]
+	private static partial Regex TokenRegex();
+
+	/// <summary>
 	/// Regex for extracting addresses from option elements.
 	/// </summary>
 	[GeneratedRegex(@"<option\s+value=""(?<uid>[^""]*)""[^>]*>\s*(?<address>[^<]+)\s*</option>")]
@@ -107,19 +119,38 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting addresses
+		// Prepare client-side request for getting the form token
 		if (clientSideResponse == null)
 		{
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 1,
+				Url = _formUrl,
+				Method = "GET",
+			};
+
+			return new GetAddressesResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+		}
+		// Prepare client-side request for address lookup
+		else if (clientSideResponse.RequestId == 1)
+		{
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups[1].Value;
+
 			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
+				{ "__token", token },
 				{ "page", _page },
+				{ "locale", "en_GB" },
 				{ _postcodeFieldName, postcode },
 				{ "callback", "{\"action\":\"ic\",\"element\":\"qe15dda0155d237d1ea161004d1839e3369ed4831\",\"data\":0,\"tableRow\":-1}" },
 			});
 
 			var clientSideRequest = new ClientSideRequest
 			{
-				RequestId = 1,
+				RequestId = 2,
 				Url = _formUrl,
 				Method = "POST",
 				Headers = new()
@@ -130,15 +161,13 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 				Body = requestBody,
 			};
 
-			var getAddressesResponse = new GetAddressesResponse
+			return new GetAddressesResponse
 			{
 				NextClientSideRequest = clientSideRequest,
 			};
-
-			return getAddressesResponse;
 		}
 		// Process addresses from response
-		else if (clientSideResponse.RequestId == 1)
+		else if (clientSideResponse.RequestId == 2)
 		{
 			var rawAddresses = AddressRegex().Matches(clientSideResponse.Content)!;
 
@@ -163,12 +192,10 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 				addresses.Add(address);
 			}
 
-			var getAddressesResponse = new GetAddressesResponse
+			return new GetAddressesResponse
 			{
 				Addresses = [.. addresses],
 			};
-
-			return getAddressesResponse;
 		}
 
 		throw new InvalidOperationException("Invalid client-side request.");
@@ -177,12 +204,31 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting bin days
+		// Prepare client-side request for getting the form token
 		if (clientSideResponse == null)
 		{
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 1,
+				Url = _formUrl,
+				Method = "GET",
+			};
+
+			return new GetBinDaysResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+		}
+		// Prepare client-side request for getting bin days
+		else if (clientSideResponse.RequestId == 1)
+		{
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups[1].Value;
+
 			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
+				{ "__token", token },
 				{ "page", _page },
+				{ "locale", "en_GB" },
 				{ _postcodeFieldName, address.Postcode! },
 				{ "qe15dda0155d237d1ea161004d1839e3369ed4831_1_0", address.Uid! },
 				{ "next", "Next" },
@@ -190,7 +236,7 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 
 			var clientSideRequest = new ClientSideRequest
 			{
-				RequestId = 1,
+				RequestId = 2,
 				Url = _formUrl,
 				Method = "POST",
 				Headers = new()
@@ -201,15 +247,13 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 				Body = requestBody,
 			};
 
-			var getBinDaysResponse = new GetBinDaysResponse
+			return new GetBinDaysResponse
 			{
 				NextClientSideRequest = clientSideRequest,
 			};
-
-			return getBinDaysResponse;
 		}
 		// Process bin days from response
-		else if (clientSideResponse.RequestId == 1)
+		else if (clientSideResponse.RequestId == 2)
 		{
 			var rawBinDays = BinDaysRegex().Matches(clientSideResponse.Content)!;
 
@@ -232,12 +276,10 @@ internal sealed partial class BraintreeDistrictCouncil : GovUkCollectorBase, ICo
 				binDays.Add(binDay);
 			}
 
-			var getBinDaysResponse = new GetBinDaysResponse
+			return new GetBinDaysResponse
 			{
 				BinDays = ProcessingUtilities.ProcessBinDays(binDays),
 			};
-
-			return getBinDaysResponse;
 		}
 
 		throw new InvalidOperationException("Invalid client-side request.");
