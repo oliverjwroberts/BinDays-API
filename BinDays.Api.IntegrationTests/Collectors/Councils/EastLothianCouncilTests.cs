@@ -19,7 +19,7 @@ public class EastLothianCouncilTests
 	}
 
 	[Theory]
-	[InlineData("EH41 3TJ")]
+	[InlineData("EH31 2AB")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
