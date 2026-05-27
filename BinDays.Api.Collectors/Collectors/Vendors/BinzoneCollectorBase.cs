@@ -52,13 +52,20 @@ internal abstract class BinzoneCollectorBase : GovUkCollectorBase
 			Name = "Small Electrical Items",
 			Colour = BinColour.Grey,
 			Keys = [ "Small electricals" ],
-			Type = BinType.Bag,
+			Type = BinType.Sack,
 		},
 		new()
 		{
 			Name = "Textiles",
 			Colour = BinColour.Grey,
 			Keys = [ "Textiles/Clothes" ],
+			Type = BinType.Sack,
+		},
+		new()
+		{
+			Name = "Batteries",
+			Colour = BinColour.Grey,
+			Keys = [ "Batteries" ],
 			Type = BinType.Bag,
 		},
 	];
