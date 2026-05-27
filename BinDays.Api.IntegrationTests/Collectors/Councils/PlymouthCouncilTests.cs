@@ -22,13 +22,15 @@ public class PlymouthCouncilTests
 	[InlineData("pl36ag")]
 	[InlineData("pl67aa")]
 	[InlineData("pl54qg")]
-	public async Task GetBinDaysTest(string postcode)
+	[InlineData("pl47eq", 31)]
+	public async Task GetBinDaysTest(string postcode, int addressIndex = 0)
 	{
 		await TestSteps.EndToEnd(
 			_client,
 			postcode,
 			_govUkId,
-			_outputHelper
+			_outputHelper,
+			addressIndex
 		);
 	}
 }
