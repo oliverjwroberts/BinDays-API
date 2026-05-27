@@ -35,6 +35,12 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 		},
 		new()
 		{
+			Name = "Mixed Recycling",
+			Colour = BinColour.Blue,
+			Keys = ["RECYCLING"],
+		},
+		new()
+		{
 			Name = "Paper and Cardboard Recycling",
 			Colour = BinColour.Blue,
 			Keys = ["Paper"],
@@ -63,6 +69,7 @@ internal sealed class EastAyrshireCouncil : GovUkCollectorBase, ICollector
 			Colour = BinColour.Green,
 			Keys =
 			[
+				"RECYCLING",
 				"REFUSE",
 				"Refuse",
 				"Paper",
