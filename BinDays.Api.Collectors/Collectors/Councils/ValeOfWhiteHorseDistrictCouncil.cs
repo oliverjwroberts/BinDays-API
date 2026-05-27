@@ -19,7 +19,4 @@ internal sealed class ValeOfWhiteHorseDistrictCouncil : BinzoneCollectorBase, IC
 
 	/// <inheritdoc/>
 	protected override string CouncilCode => "V";
-
-	/// <inheritdoc/>
-	protected override string CalendarUrl => "https://www.whitehorsedc.gov.uk/vale-of-white-horse-district-council/recycling-rubbish-and-waste/when-is-your-collection-day/waste-collections-calendar/";
 }
