@@ -127,7 +127,7 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 		// Parse addresses from Ipswich response
 		else if (clientSideResponse.RequestId == 3)
 		{
-			var rawAddresses = AddressRegex().Matches(clientSideResponse.Content);
+			var rawAddresses = AddressRegex().Matches(clientSideResponse.Content)!;
 
 			if (rawAddresses.Count > 0)
 			{

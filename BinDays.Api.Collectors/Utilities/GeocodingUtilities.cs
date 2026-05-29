@@ -1,7 +1,6 @@
 namespace BinDays.Api.Collectors.Utilities;
 
 using BinDays.Api.Collectors.Models;
-using System;
 using System.Text.Json;
 
 /// <summary>
@@ -17,12 +16,8 @@ public static class GeocodingUtilities
 		new()
 		{
 			RequestId = requestId,
-			Url = $"https://api.postcodes.io/postcodes/{Uri.EscapeDataString(postcode.Replace(" ", ""))}",
+			Url = $"https://api.postcodes.io/postcodes/{postcode.Replace(" ", "")}",
 			Method = "GET",
-			Headers = new()
-			{
-				{ "user-agent", Constants.UserAgent },
-			},
 		};
 
 	/// <summary>
@@ -41,10 +36,6 @@ public static class GeocodingUtilities
 			RequestId = requestId,
 			Url = $"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json",
 			Method = "GET",
-			Headers = new()
-			{
-				{ "user-agent", Constants.UserAgent },
-			},
 		};
 	}
 
