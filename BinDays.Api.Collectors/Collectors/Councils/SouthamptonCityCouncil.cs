@@ -107,6 +107,21 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 
 			return getAddressesResponse;
 		}
+		// Script-fetch step: execute the challenge script and build the bypass request
+		else if (clientSideResponse.RequestId == IncapsulaSolver.ScriptFetchRequestId)
+		{
+			var bypassRequest = IncapsulaSolver.BuildBypassRequestFromScript(
+				new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = _collectionsUrl,
+					Method = "GET",
+				},
+				clientSideResponse
+			);
+
+			return new GetAddressesResponse { NextClientSideRequest = bypassRequest };
+		}
 		// Handle Incapsula challenge, or extract tokens from the page
 		else if (clientSideResponse.RequestId == 1)
 		{
@@ -117,6 +132,22 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 					throw new InvalidOperationException("Incapsula challenge could not be solved.");
 				}
 
+				// Script challenge: fetch the script then execute it via Node.js to compute ___utmvc
+				if (IncapsulaSolver.IsScriptChallenge(clientSideResponse))
+				{
+					var scriptUrl = IncapsulaSolver.ExtractScriptUrl(clientSideResponse, _collectionsUrl);
+					if (!string.IsNullOrEmpty(scriptUrl))
+					{
+						return new GetAddressesResponse
+						{
+							NextClientSideRequest = IncapsulaSolver.BuildScriptFetchRequest(
+								clientSideResponse, scriptUrl!, _collectionsUrl
+							),
+						};
+					}
+				}
+
+				// Iframe challenge or script URL not found: attempt cookies-only bypass
 				var bypassRequest = IncapsulaSolver.BuildBypassRequest(
 					new ClientSideRequest
 					{
