@@ -211,9 +211,8 @@ internal static partial class IncapsulaSolver
 		ClientSideRequest originalRequest,
 		ClientSideResponse scriptResponse)
 	{
-		var cookiesJson = scriptResponse.Options.Metadata.GetValueOrDefault(_scriptUrlMetadataKey) ?? "{}";
-		var challengeCookies = JsonSerializer.Deserialize<Dictionary<string, string>>(cookiesJson)
-			?? [];
+		var cookiesJson = scriptResponse.Options.Metadata[_scriptUrlMetadataKey];
+		var challengeCookies = JsonSerializer.Deserialize<Dictionary<string, string>>(cookiesJson)!;
 
 		var scriptContent = scriptResponse.Content;
 		var utmvc = TryExecuteScriptViaNodeJs(scriptContent, challengeCookies, originalRequest.Url);
@@ -320,15 +319,15 @@ internal static partial class IncapsulaSolver
 			url = pageUrl,
 		});
 
-		var runnerPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "bindays_incapsula_runner.js");
-
-		if (!System.IO.File.Exists(runnerPath))
-		{
-			System.IO.File.WriteAllText(runnerPath, _nodeJsRunner);
-		}
+		var runnerPath = System.IO.Path.Combine(
+			System.IO.Path.GetTempPath(),
+			$"bindays_incapsula_runner_{Guid.NewGuid():N}.js"
+		);
 
 		try
 		{
+			System.IO.File.WriteAllText(runnerPath, _nodeJsRunner);
+
 			using var process = new Process
 			{
 				StartInfo = new ProcessStartInfo
@@ -337,7 +336,7 @@ internal static partial class IncapsulaSolver
 					Arguments = $"\"{runnerPath}\"",
 					RedirectStandardInput = true,
 					RedirectStandardOutput = true,
-					RedirectStandardError = true,
+					RedirectStandardError = false,
 					UseShellExecute = false,
 					CreateNoWindow = true,
 				},
@@ -347,14 +346,39 @@ internal static partial class IncapsulaSolver
 			process.StandardInput.WriteLine(input);
 			process.StandardInput.Close();
 
-			var utmvc = process.StandardOutput.ReadToEnd().Trim();
-			process.WaitForExit(10_000);
+			if (process.WaitForExit(10_000))
+			{
+				return process.StandardOutput.ReadToEnd().Trim();
+			}
 
-			return utmvc;
+			try
+			{
+				process.Kill();
+			}
+			catch
+			{
+				// Ignore kill failure
+			}
+
+			return string.Empty;
 		}
 		catch
 		{
 			return string.Empty;
+		}
+		finally
+		{
+			try
+			{
+				if (System.IO.File.Exists(runnerPath))
+				{
+					System.IO.File.Delete(runnerPath);
+				}
+			}
+			catch
+			{
+				// Ignore cleanup failure
+			}
 		}
 	}
 
@@ -448,11 +472,11 @@ internal static partial class IncapsulaSolver
 	}
 
 	/// <summary>
-	/// Base64-encodes a string using UTF-8 byte representation, matching JavaScript's btoa()
-	/// behaviour for strings that contain only ASCII or Latin-1 characters.
+	/// Base64-encodes a string using Latin-1 (ISO-8859-1) byte representation, exactly matching
+	/// JavaScript's btoa() behaviour, which treats each character as a single byte (0–255).
 	/// </summary>
 	private static string Base64Encode(string value)
 	{
-		return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+		return Convert.ToBase64String(Encoding.Latin1.GetBytes(value));
 	}
 }
