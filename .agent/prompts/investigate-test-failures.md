@@ -40,6 +40,15 @@ Record the outcome:
 
 If the Playwright check cannot be completed (e.g. the URL cannot be determined), note this and fall back to log-based categorisation only.
 
+After completing the check (regardless of outcome), take a screenshot of the final page state using the Playwright MCP `browser_take_screenshot` tool. Then save it under the council name so it can be attached to the issue:
+
+```bash
+LATEST=$(ls -t .agent/playwright/out/*.png 2>/dev/null | head -1)
+[ -n "$LATEST" ] && cp "$LATEST" ".agent/playwright/out/{councilName}-website.png"
+```
+
+Replace `{councilName}` with the actual council name from the failure entry (e.g. `BarnetCouncil`).
+
 ### 3. Categorise the Failure
 
 Use **both** the Playwright result and the error logs to determine which category fits:

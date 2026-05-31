@@ -72,12 +72,53 @@ jobs:
         uses: ./.github/actions/install-ai-tools
         with:
           codex_config: ${{ secrets.CODEX_CONFIG }}
+          playwright_config: |
+            {
+              "outputDir": ".agent/playwright/out"
+            }
+
+      - name: Create Playwright output directory
+        if: steps.check-existing.outputs.has_new_failures == 'true'
+        run: mkdir -p .agent/playwright/out
 
       - name: Investigate with Codex
         if: steps.check-existing.outputs.has_new_failures == 'true'
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: ./.github/scripts/investigate-test-failures/investigate.sh
+
+      - name: Install AWS CLI
+        if: steps.check-existing.outputs.has_new_failures == 'true'
+        continue-on-error: true
+        run: |
+          if ! command -v aws &> /dev/null; then
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+            rm -rf aws awscliv2.zip
+          fi
+
+      - name: Upload screenshots to R2
+        if: steps.check-existing.outputs.has_new_failures == 'true'
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+          CLOUDFLARE_R2_CUSTOM_DOMAIN: ${{ secrets.CLOUDFLARE_R2_CUSTOM_DOMAIN }}
+          CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
+        run: ./.github/scripts/investigate-test-failures/upload-screenshots.sh
+
+      - name: Attach screenshots to issues
+        if: steps.check-existing.outputs.has_new_failures == 'true'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const script = require('./.github/scripts/investigate-test-failures/attach-screenshots.js');
+            await script({ github, context, core });
 
       - name: Write job summary
         if: always()
