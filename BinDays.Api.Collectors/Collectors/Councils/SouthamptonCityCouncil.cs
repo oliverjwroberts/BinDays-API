@@ -59,6 +59,11 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 	];
 
 	/// <summary>
+	/// The URL for the collections page, used across all steps in GetAddresses.
+	/// </summary>
+	private const string _collectionsUrl = "https://www.southampton.gov.uk/bins-recycling/bins/collections/";
+
+	/// <summary>
 	/// Regex for the ufprt token values from input fields.
 	/// </summary>
 	[GeneratedRegex(@"<input[^>]*?(?:name|id)=[""']ufprt[""'][^>]*?value=[""'](?<ufprt>[^""']*)[""'][^>]*?/?>")]
@@ -88,11 +93,10 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 		// Prepare client-side request for getting token
 		if (clientSideResponse == null)
 		{
-			// Prepare client-side request
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = "https://www.southampton.gov.uk/bins-recycling/bins/collections/",
+				Url = _collectionsUrl,
 				Method = "GET",
 			};
 
@@ -103,9 +107,60 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 
 			return getAddressesResponse;
 		}
-		// Prepare client-side request for getting addresses
+		// Script-fetch step: execute the challenge script and build the bypass request
+		else if (clientSideResponse.RequestId == IncapsulaSolver.ScriptFetchRequestId)
+		{
+			var bypassRequest = IncapsulaSolver.BuildBypassRequestFromScript(
+				new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = _collectionsUrl,
+					Method = "GET",
+				},
+				clientSideResponse
+			);
+
+			return new GetAddressesResponse { NextClientSideRequest = bypassRequest };
+		}
+		// Handle Incapsula challenge, or extract tokens from the page
 		else if (clientSideResponse.RequestId == 1)
 		{
+			if (IncapsulaSolver.IsChallenge(clientSideResponse))
+			{
+				if (IncapsulaSolver.GetStoredCookie(clientSideResponse) != null)
+				{
+					throw new InvalidOperationException("Incapsula challenge could not be solved.");
+				}
+
+				// Script challenge: fetch the script then execute it via Node.js to compute ___utmvc
+				if (IncapsulaSolver.IsScriptChallenge(clientSideResponse))
+				{
+					var scriptUrl = IncapsulaSolver.ExtractScriptUrl(clientSideResponse, _collectionsUrl);
+					if (!string.IsNullOrEmpty(scriptUrl))
+					{
+						return new GetAddressesResponse
+						{
+							NextClientSideRequest = IncapsulaSolver.BuildScriptFetchRequest(
+								clientSideResponse, scriptUrl!, _collectionsUrl
+							),
+						};
+					}
+				}
+
+				// Iframe challenge or script URL not found: attempt cookies-only bypass
+				var bypassRequest = IncapsulaSolver.BuildBypassRequest(
+					new ClientSideRequest
+					{
+						RequestId = 1,
+						Url = _collectionsUrl,
+						Method = "GET",
+					},
+					clientSideResponse
+				);
+
+				return new GetAddressesResponse { NextClientSideRequest = bypassRequest };
+			}
+
 			var ufprtMatch = UfprtTokenRegex().Match(clientSideResponse.Content);
 			var requestVerificationTokenMatch = RequestVerificationTokenRegex().Match(clientSideResponse.Content);
 			if (!ufprtMatch.Success)
@@ -133,16 +188,24 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 				{ "content-type", Constants.FormUrlEncoded },
 			};
 
+			// Merge Incapsula cookies (if challenge was solved) with any cookies set by the page
+			var incapsulaCookie = IncapsulaSolver.GetStoredCookie(clientSideResponse);
 			var setCookieHeader = clientSideResponse.Headers.GetValueOrDefault("set-cookie");
-			if (!string.IsNullOrEmpty(setCookieHeader))
+			var pageCookie = string.IsNullOrEmpty(setCookieHeader)
+				? null
+				: ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
+			var combinedCookie = string.Join("; ", new[] { incapsulaCookie, pageCookie }
+				.Where(c => !string.IsNullOrEmpty(c)));
+
+			if (!string.IsNullOrEmpty(combinedCookie))
 			{
-				requestHeaders["cookie"] = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
+				requestHeaders["cookie"] = combinedCookie;
 			}
 
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
-				Url = "https://www.southampton.gov.uk/bins-recycling/bins/collections/",
+				Url = _collectionsUrl,
 				Method = "POST",
 				Headers = requestHeaders,
 				Body = requestBody,
@@ -193,31 +256,13 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting token
+		// Prepare client-side request for getting bin days
+		// The waste calendar endpoint is not Incapsula-protected, so no challenge handling is needed.
 		if (clientSideResponse == null)
 		{
-			// Prepare client-side request
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 1,
-				Url = "https://www.southampton.gov.uk/bins-recycling/bins/collections/",
-				Method = "GET",
-			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
-		}
-		// Prepare client-side request for getting bin days
-		else if (clientSideResponse.RequestId == 1)
-		{
-			// Prepare client-side request
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 2,
 				Url = $"https://www.southampton.gov.uk/whereilive/waste-calendar?UPRN={address.Uid}",
 				Method = "GET",
 			};
@@ -230,7 +275,7 @@ internal sealed partial class SouthamptonCityCouncil : GovUkCollectorBase, IColl
 			return getBinDaysResponse;
 		}
 		// Process bin days from response
-		else if (clientSideResponse.RequestId == 2)
+		else if (clientSideResponse.RequestId == 1)
 		{
 			// Get bin days from response
 			var rawBinDays = BinDaysRegex().Matches(clientSideResponse.Content)!;
