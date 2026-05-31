@@ -1,6 +1,6 @@
 # Task: Investigate Integration Test Failures
 
-You are investigating integration test failures for the BinDays API project. Scheduled daily integration tests have failed, and you need to analyse each failure, create GitHub issues, and attempt fixes where appropriate.
+You are investigating integration test failures for the BinDays API project. Scheduled daily integration tests have failed, and you need to analyse each failure and create GitHub issues.
 
 **IMPORTANT: This is a fully automated, non-interactive task running in a CI/CD pipeline.** There is NO user present to answer questions, provide clarification, or give approval. You cannot ask for help or confirmation - you must make all decisions autonomously and complete the entire task independently.
 
@@ -8,17 +8,11 @@ You are investigating integration test failures for the BinDays API project. Sch
 
 The file `failure-context.json` in the repository root contains:
 
-- `runId`: the workflow run ID (use this to make branch names unique)
+- `runId`: the workflow run ID
 - `runUrl`: link to the failed GitHub Actions workflow run
 - `failures`: array of objects with `councilName`, `logs`, and `needsInvestigation`
 
 Only process failures where `needsInvestigation` is `true`. Failures marked `false` already have open tracking issues.
-
-## Style Guide
-
-When attempting code fixes, you must follow all project conventions:
-
-$STYLE_GUIDE
 
 ## Investigation Process
 
@@ -91,36 +85,7 @@ EOF
 gh issue create --title "Broken collector: {councilName}" --label "collector-broken" --body-file /tmp/issue-body.md
 ```
 
-### 5. Attempt Fix (Website Changed Only)
-
-**Only for "Website changed" failures**, attempt to fix the collector:
-
-1. Read `CLAUDE.md` for project overview
-2. Study 1-2 similar collectors for reference patterns
-3. Analyse the error and collector source to determine what changed
-4. Fix the collector code
-5. Create a branch named `fix/{councilName}-collector-{runId}` (include the `runId` from `failure-context.json` to keep branches unique across runs)
-6. Commit, push, and open a PR referencing the issue
-
-```bash
-git checkout -b fix/{councilName}-collector-{runId}
-# ... make changes ...
-git add -A
-git commit -m "Fix {councilName} collector for website changes"
-git push -u origin fix/{councilName}-collector-{runId}
-cat > /tmp/pr-body.md << 'EOF'
-Fixes #{issueNumber}
-
-{description of changes}
-EOF
-gh pr create --title "Fix {councilName} collector (run {runId})" --body-file /tmp/pr-body.md
-```
-
-Fixes are best-effort — the issue ensures manual follow-up if the auto-fix doesn't work. The PR will trigger existing integration tests CI for verification.
-
 ## Important Notes
 
 - If **all** failures are in the same category (e.g. all "Website down"), mention this pattern in the first issue body. It may indicate a runner or network problem rather than individual council issues.
-- Do **not** create fix PRs for "Website down" or "Data issue" failures — only create the tracking issue.
 - Include the Playwright finding in the issue body (e.g. "Website manually verified as working" or "Website appears to be down"), so that humans reading the issue have the full context.
-- Fix attempts for "Website changed" should be grounded in what Playwright revealed about the current website structure — use it to understand what the page looks like now before writing code.
