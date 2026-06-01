@@ -65,19 +65,37 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 	/// </summary>
 	private const string _baseUrl = "https://app.ipswich.gov.uk";
 
+	/// <summary>
+	/// Regex to extract addresses from the street search results list.
+	/// </summary>
 	[GeneratedRegex(@"<li>\s*<a href=""/bin-collection/weeks/(?<uid>\d+)"">(?<street>[^<]+)</a>\s*</li>")]
 	private static partial Regex AddressRegex();
 
-	// The Ipswich site skips address selection and returns bin days directly when the street name
-	// is unambiguous. This regex extracts the street name and UID from that direct response.
+	/// <summary>
+	/// Regex to extract the street name and UID when the site skips address selection and returns
+	/// bin days directly for an unambiguous street name.
+	/// </summary>
 	[GeneratedRegex(@"<h2>(?<street>[^<]+)</h2>[\s\S]*?/bin-collection/(?:pdf|months)/(?<uid>\d+)")]
 	private static partial Regex DirectBinDaysRegex();
 
+	/// <summary>
+	/// Regex to extract bin days from the calendar entries.
+	/// </summary>
 	[GeneratedRegex(@"<dt class=""ibc-calendar-entry"">[\s\S]*?<div class=""ibc-calendar-entry__date"">(?<day>\d+)<span class=""ibc-visually-hidden"">[^<]+</span></div>\s*<div class=""ibc-calendar-entry__month"">(?<monthYear>[^<]+)</div>[\s\S]*?<dd class=""ibc-calendar-entry__details"">[\s\S]*?<ul>\s*(?<bins>[\s\S]*?)\s*</ul>")]
 	private static partial Regex BinDaysRegex();
 
+	/// <summary>
+	/// Regex to extract bin service names from the bin day list items.
+	/// </summary>
 	[GeneratedRegex(@"<li class=""[^""]+"">(?<service>[^<]+)</li>")]
 	private static partial Regex BinNameRegex();
+
+	/// <summary>
+	/// Regex to extract street names from the HTML-encoded autocomplete attribute. The &amp;quot;
+	/// encoding only appears inside data-autocomplete, making the pattern unambiguous.
+	/// </summary>
+	[GeneratedRegex(@"&quot;(?<street>[^&]+)&quot;")]
+	private static partial Regex AutocompleteStreetRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
@@ -85,35 +103,80 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 		// Step 1: GET postcodes.io to obtain lat/lon for the postcode
 		if (clientSideResponse == null)
 		{
-			return new GetAddressesResponse
+			var clientSideRequest = GeocodingUtilities.CreatePostcodesIoRequest(postcode, 1);
+
+			var getAddressesResponse = new GetAddressesResponse
 			{
-				NextClientSideRequest = GeocodingUtilities.CreatePostcodesIoRequest(postcode, 1)
+				NextClientSideRequest = clientSideRequest,
 			};
+
+			return getAddressesResponse;
 		}
 		// Step 2: GET Nominatim reverse geocode to resolve lat/lon to a road name
 		else if (clientSideResponse.RequestId == 1)
 		{
-			return new GetAddressesResponse
+			var clientSideRequest = GeocodingUtilities.CreateNominatimReverseGeocodeRequest(clientSideResponse.Content, 2);
+
+			var getAddressesResponse = new GetAddressesResponse
 			{
-				NextClientSideRequest = GeocodingUtilities.CreateNominatimReverseGeocodeRequest(clientSideResponse.Content, 2)
+				NextClientSideRequest = clientSideRequest,
 			};
+
+			return getAddressesResponse;
 		}
-		// Step 3: POST to Ipswich bin collection search using the road name
+		// Step 3: GET Ipswich search page to resolve the road name against the autocomplete list
 		else if (clientSideResponse.RequestId == 2)
 		{
 			var road = GeocodingUtilities.ParseRoadName(clientSideResponse.Content)
 				.Replace("'", string.Empty)
 				.Replace("’", string.Empty);
 
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 3,
+				Url = $"{_baseUrl}/bin-collection/",
+				Method = "GET",
+				Options = new ClientSideOptions
+				{
+					Metadata = { { "road", road } },
+				},
+			};
+
+			var getAddressesResponse = new GetAddressesResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getAddressesResponse;
+		}
+		// Step 4: POST to Ipswich bin collection search using the normalized road name
+		else if (clientSideResponse.RequestId == 3)
+		{
+			var road = clientSideResponse.Options.Metadata["road"];
+			var normalizedRoad = road.Replace(" ", "").ToLowerInvariant();
+
+			// Nominatim may use a different spelling (e.g. "Coleness Road" vs "Cole Ness Road");
+			// the autocomplete list contains the canonical form, so find the normalized match.
+			var streetName = road;
+			foreach (Match m in AutocompleteStreetRegex().Matches(clientSideResponse.Content)!)
+			{
+				var street = m.Groups["street"].Value;
+				if (street.Replace(" ", "").ToLowerInvariant() == normalizedRoad)
+				{
+					streetName = street;
+					break;
+				}
+			}
+
 			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
-				{ "street-name", road },
+				{ "street-name", streetName },
 				{ "submit-button", string.Empty },
 			});
 
 			var clientSideRequest = new ClientSideRequest
 			{
-				RequestId = 3,
+				RequestId = 4,
 				Url = $"{_baseUrl}/bin-collection/",
 				Method = "POST",
 				Headers = new()
@@ -124,15 +187,21 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 				Body = requestBody,
 			};
 
-			return new GetAddressesResponse { NextClientSideRequest = clientSideRequest };
+			var getAddressesResponse = new GetAddressesResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getAddressesResponse;
 		}
 		// Parse addresses from Ipswich response
-		else if (clientSideResponse.RequestId == 3)
+		else if (clientSideResponse.RequestId == 4)
 		{
 			var rawAddresses = AddressRegex().Matches(clientSideResponse.Content)!;
 
 			if (rawAddresses.Count > 0)
 			{
+				// Iterate through each address, and create a new address object
 				var addresses = new List<Address>();
 				foreach (Match rawAddress in rawAddresses)
 				{
@@ -147,7 +216,12 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 					});
 				}
 
-				return new GetAddressesResponse { Addresses = [.. addresses] };
+				var getAddressesResponse = new GetAddressesResponse
+				{
+					Addresses = [.. addresses],
+				};
+
+				return getAddressesResponse;
 			}
 
 			var directMatch = DirectBinDaysRegex().Match(clientSideResponse.Content);
@@ -156,7 +230,7 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 				var street = WebUtility.HtmlDecode(directMatch.Groups["street"].Value.Trim());
 				var uid = directMatch.Groups["uid"].Value.Trim();
 
-				return new GetAddressesResponse
+				var getAddressesResponse = new GetAddressesResponse
 				{
 					Addresses =
 					[
@@ -168,6 +242,8 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 						},
 					],
 				};
+
+				return getAddressesResponse;
 			}
 
 			return new GetAddressesResponse { Addresses = [] };
@@ -188,7 +264,12 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 				Method = "GET",
 			};
 
-			return new GetBinDaysResponse { NextClientSideRequest = clientSideRequest };
+			var getBinDaysResponse = new GetBinDaysResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getBinDaysResponse;
 		}
 		else if (clientSideResponse.RequestId == 1)
 		{
