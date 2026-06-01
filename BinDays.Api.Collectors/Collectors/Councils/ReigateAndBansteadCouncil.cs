@@ -126,10 +126,6 @@ internal sealed partial class ReigateAndBansteadCouncil : GovUkCollectorBase, IC
 					{ "cookie", cookie },
 				},
 				Body = requestBody,
-				Options = new ClientSideOptions
-				{
-					Metadata = { { "cookie", cookie } },
-				},
 			};
 
 			var getAddressesResponse = new GetAddressesResponse
