@@ -73,7 +73,7 @@ internal sealed partial class EastSuffolkCouncil : GovUkCollectorBase, ICollecto
 	/// <summary>
 	/// Regex to extract the session identifier from the HTML response.
 	/// </summary>
-	[GeneratedRegex(@"sid=(?<sessionId>[a-f0-9]+)")]
+	[GeneratedRegex(@"sid=(?<sessionId>[a-zA-Z0-9]+)")]
 	private static partial Regex SessionIdRegex();
 
 	/// <inheritdoc/>
@@ -82,19 +82,10 @@ internal sealed partial class EastSuffolkCouncil : GovUkCollectorBase, ICollecto
 		// Prepare client-side request for starting the session
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = new ClientSideRequest
+			return new GetAddressesResponse
 			{
-				RequestId = 1,
-				Url = _serviceUrl,
-				Method = "GET",
+				NextClientSideRequest = CreateInitialSessionRequest(),
 			};
-
-			var getAddressesResponse = new GetAddressesResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getAddressesResponse;
 		}
 		// Prepare client-side request for getting addresses
 		else if (clientSideResponse.RequestId == 1)
@@ -176,19 +167,10 @@ internal sealed partial class EastSuffolkCouncil : GovUkCollectorBase, ICollecto
 		// Prepare client-side request for starting the session
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = new ClientSideRequest
+			return new GetBinDaysResponse
 			{
-				RequestId = 1,
-				Url = _serviceUrl,
-				Method = "GET",
+				NextClientSideRequest = CreateInitialSessionRequest(),
 			};
-
-			var getBinDaysResponse = new GetBinDaysResponse
-			{
-				NextClientSideRequest = clientSideRequest,
-			};
-
-			return getBinDaysResponse;
 		}
 		// Prepare client-side request for getting an authentication token
 		else if (clientSideResponse.RequestId == 1)
@@ -236,8 +218,8 @@ internal sealed partial class EastSuffolkCouncil : GovUkCollectorBase, ICollecto
 			var authenticateResponse = authRowsData.GetProperty("0").GetProperty("AuthenticateResponse").GetString()!;
 			var requestCookies = clientSideResponse.Options.Metadata["cookie"];
 			var sessionId = clientSideResponse.Options.Metadata["sessionId"];
-			var minimumDate = DateTime.Now.Date.ToString("yyyy-MM-ddT00:00:00");
-			var maximumDate = DateTime.Now.Date.AddDays(28).ToString("yyyy-MM-ddT00:00:00");
+			var minimumDate = DateTime.UtcNow.Date.ToString("yyyy-MM-ddT00:00:00");
+			var maximumDate = DateTime.UtcNow.Date.AddDays(28).ToString("yyyy-MM-ddT00:00:00");
 
 			var requestBody = $$"""
 			{
@@ -295,8 +277,8 @@ internal sealed partial class EastSuffolkCouncil : GovUkCollectorBase, ICollecto
 			foreach (var row in rowsData.EnumerateObject())
 			{
 				var rowData = row.Value;
-				var service = rowData.GetProperty("CollectionType").GetString()!;
-				var collectionDate = rowData.GetProperty("CollectionDate").GetString()!;
+				var service = rowData.GetProperty("CollectionType").GetString()!.Trim();
+				var collectionDate = rowData.GetProperty("CollectionDate").GetString()!.Trim();
 
 				if (string.IsNullOrWhiteSpace(collectionDate))
 				{
@@ -324,6 +306,17 @@ internal sealed partial class EastSuffolkCouncil : GovUkCollectorBase, ICollecto
 
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
+
+	/// <summary>
+	/// Creates the initial GET request to start a session with the self-service portal.
+	/// </summary>
+	/// <returns>A <see cref="ClientSideRequest"/> for the initial session request.</returns>
+	private static ClientSideRequest CreateInitialSessionRequest() => new()
+	{
+		RequestId = 1,
+		Url = _serviceUrl,
+		Method = "GET",
+	};
 
 	/// <summary>
 	/// Extracts the request cookies and session identifier from a session response.
