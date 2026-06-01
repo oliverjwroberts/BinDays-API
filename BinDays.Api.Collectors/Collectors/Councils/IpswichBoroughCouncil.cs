@@ -101,7 +101,9 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 		// Step 3: POST to Ipswich bin collection search using the road name
 		else if (clientSideResponse.RequestId == 2)
 		{
-			var road = GeocodingUtilities.ParseRoadName(clientSideResponse.Content);
+			var road = GeocodingUtilities.ParseRoadName(clientSideResponse.Content)
+				.Replace("'", string.Empty)
+				.Replace("’", string.Empty);
 
 			var requestBody = ProcessingUtilities.ConvertDictionaryToFormData(new()
 			{
