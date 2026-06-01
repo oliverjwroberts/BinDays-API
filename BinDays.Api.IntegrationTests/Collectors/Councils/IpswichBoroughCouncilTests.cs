@@ -21,6 +21,7 @@ public class IpswichBoroughCouncilTests
 	[Theory]
 	[InlineData("IP2 9PD")]
 	[InlineData("IP3 0SP")]
+	[InlineData("IP4 5DG")]
 	public async Task GetBinDaysTest(string postcode)
 	{
 		await TestSteps.EndToEnd(
