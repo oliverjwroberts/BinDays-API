@@ -161,7 +161,7 @@ internal sealed partial class IpswichBoroughCouncil : GovUkCollectorBase, IColle
 			foreach (Match m in AutocompleteStreetRegex().Matches(clientSideResponse.Content)!)
 			{
 				var street = m.Groups["street"].Value;
-				if (street.Replace(" ", "").ToLowerInvariant() == normalizedRoad)
+				if (street.Replace(" ", "").Equals(normalizedRoad, StringComparison.InvariantCultureIgnoreCase))
 				{
 					streetName = street;
 					break;
