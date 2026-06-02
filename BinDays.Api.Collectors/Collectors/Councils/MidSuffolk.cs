@@ -118,7 +118,7 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 				"/placecube_digitalplace.addresscontext/search-address-by-postcode": {
 					"companyId": "{{companyId}}",
 					"postcode": "{{postcode}}",
-					"fallbackToNationalLookup": "false"
+					"fallbackToNationalLookup": false
 				}
 			}
 			""";
@@ -136,7 +136,7 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 					{ "origin", "https://www.midsuffolk.gov.uk" },
 					{ "referer", "https://www.midsuffolk.gov.uk/check-your-collection-day" },
 					{ "x-csrf-token", token },
-					{ "content-type", "application/json" },
+					{ "content-type", Constants.ApplicationJson },
 					{ "cookie", cookies },
 					{ "sec-fetch-dest", "empty" },
 					{ "sec-fetch-mode", "cors" },
@@ -165,12 +165,11 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 				var uprn = element.GetProperty("UPRN").GetString()!;
 				var fullAddress = element.GetProperty("fullAddress").GetString()!;
 
-				// Uid format: "uprn;fullAddress"
 				var address = new Address
 				{
 					Property = fullAddress,
 					Postcode = postcode,
-					Uid = $"{uprn};{fullAddress}",
+					Uid = uprn,
 				};
 
 				addresses.Add(address);
@@ -217,10 +216,8 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
 			var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
 
-			// Extract UPRN and FullAddress previously concatenated in the Address Uid
-			var parts = address.Uid!.Split(';', 2);
-			var uprn = parts[0];
-			var fullAddress = parts[1];
+			var uprn = address.Uid!;
+			var fullAddress = address.Property!;
 
 			var boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
 			var portletPrefix = "_com_placecube_digitalplace_local_waste_portlet_CollectionDayFinderPortlet_";
