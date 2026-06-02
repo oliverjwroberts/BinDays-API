@@ -6,7 +6,6 @@ using BinDays.Api.Collectors.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 /// <summary>
@@ -26,7 +25,8 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 	/// <summary>
 	/// The list of bin types for this collector.
 	/// </summary>
-	private readonly IReadOnlyCollection<Bin> _binTypes = [
+	private readonly IReadOnlyCollection<Bin> _binTypes =
+	[
 		new()
 		{
 			Name = "General Waste",
@@ -43,13 +43,13 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 		{
 			Name = "Paper and Card Recycling",
 			Colour = BinColour.Blue,
-			Keys = [ "Paper and Card Collection (Black with Blue Lid)" ],
+			Keys = [ "Paper And Card Collection" ],
 		},
 		new()
 		{
 			Name = "Food Waste",
 			Colour = BinColour.Grey,
-			Keys = [ "Food Waste Collection (Grey Caddy)" ],
+			Keys = [ "Food Waste Collection" ],
 			Type = BinType.Caddy,
 		},
 		new()
@@ -61,81 +61,86 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 	];
 
 	/// <summary>
-	/// The field reference for the postcode and address value.
+	/// Regex to extract the Liferay CSRF auth token.
 	/// </summary>
-	private const string _addressFieldReference = "Address94394335";
+	[GeneratedRegex(@"Liferay\.authToken\s*=\s*'(?<token>[^']+)'")]
+	private static partial Regex TokenRegex();
 
 	/// <summary>
-	/// The field reference for the UPRN value.
+	/// Regex to extract the Liferay form date required for portlet POST validations.
 	/// </summary>
-	private const string _uprnFieldReference = "Text06802196";
+	[GeneratedRegex(@"id=""[^""]*formDate""[^>]*value=""(?<formDate>\d+)""")]
+	private static partial Regex FormDateRegex();
 
 	/// <summary>
-	/// The field reference for returned collection data.
+	/// Regex to extract the Liferay company ID.
 	/// </summary>
-	private const string _collectionFieldReference = "CheckboxMultiple75509060";
+	[GeneratedRegex(@"getCompanyId:\s*function\(\)\s*\{\s*return\s*'(?<companyId>\d+)';\s*\}")]
+	private static partial Regex CompanyIdRegex();
 
 	/// <summary>
-	/// Regex for extracting the CSRF token from the page.
+	/// Regex to extract bin days from the resulting HTML table.
 	/// </summary>
-	[GeneratedRegex(@"p_auth=(?<token>[A-Za-z0-9]+)")]
-	private static partial Regex AuthTokenRegex();
-
-	/// <summary>
-	/// Regex for extracting the page layout id.
-	/// </summary>
-	[GeneratedRegex(@"getPlid:\s*function\(\)\s*\{\s*return\s*'(?<plid>\d+)';")]
-	private static partial Regex PLidRegex();
-
-	/// <summary>
-	/// Regex for extracting the scope group id.
-	/// </summary>
-	[GeneratedRegex(@"getScopeGroupId:\s*function\(\)\s*\{\s*return\s*'(?<scopeGroupId>\d+)';")]
-	private static partial Regex ScopeGroupIdRegex();
-
-	/// <summary>
-	/// Regex for extracting the form portlet namespace.
-	/// </summary>
-	[GeneratedRegex(@"data-fm-namespace=""(?<portletNamespace>[^""]+)""")]
-	private static partial Regex PortletNamespaceRegex();
-
-	/// <summary>
-	/// Regex for extracting the serialized form context object from the page script.
-	/// </summary>
-	[GeneratedRegex(@"render\(componentModule,\s*(?<formContext>\{\""templateNamespace\"":\""ddm\.paginated_form\""[\s\S]*?\})\s*,\s*'[^']+'\);", RegexOptions.Singleline)]
-	private static partial Regex FormContextRegex();
-
-	/// <summary>
-	/// Regex for extracting the collection service and date from the returned option value.
-	/// </summary>
-	[GeneratedRegex(@"\bname=(?<service>[^,]+),.*?\bcollectionDate=(?<date>[A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4})")]
-	private static partial Regex CollectionDetailsRegex();
+	[GeneratedRegex(@"<td>(?<service>[^<]+)<\/td>\s*<td>\s*(?<date>[a-zA-Z]+\s+\d+\s+[a-zA-Z]+\s+\d+)\s*<\/td>")]
+	private static partial Regex BinDaysRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting addresses
+		// Prepare initial client-side request to load Liferay tokens and session cookies
 		if (clientSideResponse == null)
 		{
+			var clientSideRequest = new ClientSideRequest
+			{
+				RequestId = 1,
+				Url = "https://www.midsuffolk.gov.uk/check-your-collection-day",
+				Method = "GET",
+			};
+
+			var getAddressesResponse = new GetAddressesResponse
+			{
+				NextClientSideRequest = clientSideRequest,
+			};
+
+			return getAddressesResponse;
+		}
+		// Process initial page, extract security tokens, and request addresses
+		else if (clientSideResponse.RequestId == 1)
+		{
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			var companyId = CompanyIdRegex().Match(clientSideResponse.Content).Groups["companyId"].Value;
+
+			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
+			var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
+
 			var requestBody = $$"""
 			{
-			  "/placecube_digitalplace.addresscontext/search-address-by-postcode": {
-			    "companyId": "1486681",
-			    "postcode": "{{postcode}}",
-			    "fallbackToNationalLookup": false
-			  }
+				"/placecube_digitalplace.addresscontext/search-address-by-postcode": {
+					"companyId": "{{companyId}}",
+					"postcode": "{{postcode}}",
+					"fallbackToNationalLookup": "false"
+				}
 			}
 			""";
 
 			var clientSideRequest = new ClientSideRequest
 			{
-				RequestId = 1,
+				RequestId = 2,
 				Url = "https://www.midsuffolk.gov.uk/api/jsonws/invoke",
 				Method = "POST",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
-					{ "content-type", Constants.ApplicationJson },
+					{ "accept", "*/*" },
+					{ "accept-language", "en-GB,en;q=0.9" },
+					{ "origin", "https://www.midsuffolk.gov.uk" },
+					{ "referer", "https://www.midsuffolk.gov.uk/check-your-collection-day" },
+					{ "x-csrf-token", token },
+					{ "content-type", "application/json" },
+					{ "cookie", cookies },
+					{ "sec-fetch-dest", "empty" },
+					{ "sec-fetch-mode", "cors" },
+					{ "sec-fetch-site", "same-origin" },
 				},
 				Body = requestBody,
 			};
@@ -147,20 +152,25 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 
 			return getAddressesResponse;
 		}
-		// Process addresses from response
-		else if (clientSideResponse.RequestId == 1)
+		// Parse JSON response into addresses
+		else if (clientSideResponse.RequestId == 2)
 		{
-			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
+			using var doc = JsonDocument.Parse(clientSideResponse.Content);
+			var root = doc.RootElement;
 
 			// Iterate through each address, and create a new address object
 			var addresses = new List<Address>();
-			foreach (var addressElement in jsonDoc.RootElement.EnumerateArray())
+			foreach (var element in root.EnumerateArray())
 			{
+				var uprn = element.GetProperty("UPRN").GetString()!;
+				var fullAddress = element.GetProperty("fullAddress").GetString()!;
+
+				// Uid format: "uprn;fullAddress"
 				var address = new Address
 				{
-					Property = addressElement.GetProperty("fullAddress").GetString()!.Trim(),
+					Property = fullAddress,
 					Postcode = postcode,
-					Uid = addressElement.GetProperty("UPRN").GetString()!.Trim(),
+					Uid = $"{uprn};{fullAddress}",
 				};
 
 				addresses.Add(address);
@@ -181,7 +191,7 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for loading the bin collection page
+		// Prepare initial client-side request to load Liferay tokens and session cookies
 		if (clientSideResponse == null)
 		{
 			var clientSideRequest = new ClientSideRequest
@@ -198,101 +208,53 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 
 			return getBinDaysResponse;
 		}
-		// Prepare client-side request for evaluating bin collection data
+		// Process initial page, format multipart body, and post to Liferay Portlet
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
-			var token = AuthTokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
-			var pLid = PLidRegex().Match(clientSideResponse.Content).Groups["plid"].Value;
-			var scopeGroupId = ScopeGroupIdRegex().Match(clientSideResponse.Content).Groups["scopeGroupId"].Value;
-			var portletNamespace = PortletNamespaceRegex().Match(clientSideResponse.Content).Groups["portletNamespace"].Value;
-			var formContext = FormContextRegex().Match(clientSideResponse.Content).Groups["formContext"].Value;
+			var token = TokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			var formDate = FormDateRegex().Match(clientSideResponse.Content).Groups["formDate"].Value;
 
-			var addressValue = JsonSerializer.Serialize(new { postcode = address.Postcode!, fullAddress = address.Property!, uprn = address.Uid! });
-			var formContextJson = JsonNode.Parse(formContext)!.AsObject();
-			var rows = formContextJson["pages"]![0]!["rows"]!.AsArray();
+			var setCookieHeader = clientSideResponse.Headers["set-cookie"];
+			var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(setCookieHeader);
 
-			// Iterate through each form row and update the selected address values
-			foreach (var row in rows)
+			// Extract UPRN and FullAddress previously concatenated in the Address Uid
+			var parts = address.Uid!.Split(';', 2);
+			var uprn = parts[0];
+			var fullAddress = parts[1];
+
+			var boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+			var portletPrefix = "_com_placecube_digitalplace_local_waste_portlet_CollectionDayFinderPortlet_";
+
+			var requestBody = ProcessingUtilities.BuildMultipartFormData(boundary, new()
 			{
-				var columns = row!["columns"]!.AsArray();
-
-				// Iterate through each form column and update field values needed by the evaluation trigger
-				foreach (var column in columns)
-				{
-					var fields = column!["fields"]!.AsArray();
-
-					// Iterate through each field and update the address and UPRN fields
-					foreach (var field in fields)
-					{
-						var fieldObject = field!.AsObject();
-						var fieldReference = fieldObject["fieldReference"]!.GetValue<string>();
-
-						if (fieldReference == _addressFieldReference)
-						{
-							fieldObject["value"] = addressValue;
-							fieldObject["localizedValue"]!["en_GB"] = addressValue;
-							fieldObject["localizedValueEdited"] = JsonNode.Parse("{\"en_GB\":true}");
-						}
-
-						if (fieldReference == _uprnFieldReference)
-						{
-							fieldObject["value"] = address.Uid!;
-							fieldObject["localizedValue"]!["en_GB"] = address.Uid!;
-							fieldObject["localizedValueEdited"] = JsonNode.Parse("{\"en_GB\":true}");
-						}
-					}
-				}
-			}
-
-			var serializedFormContext = formContextJson.ToJsonString();
-			var boundary = "----BinDaysBoundary";
-			var requestBody = $$"""
-			--{{boundary}}
-			Content-Disposition: form-data; name="languageId"
-
-			en_GB
-			--{{boundary}}
-			Content-Disposition: form-data; name="p_auth"
-
-			{{token}}
-			--{{boundary}}
-			Content-Disposition: form-data; name="p_l_id"
-
-			{{pLid}}
-			--{{boundary}}
-			Content-Disposition: form-data; name="p_v_l_s_g_id"
-
-			{{scopeGroupId}}
-			--{{boundary}}
-			Content-Disposition: form-data; name="portletNamespace"
-
-			{{portletNamespace}}
-			--{{boundary}}
-			Content-Disposition: form-data; name="serializedFormContext"
-
-			{{serializedFormContext}}
-			--{{boundary}}
-			Content-Disposition: form-data; name="trigger"
-
-			{{_uprnFieldReference}}
-			--{{boundary}}--
-			""";
+				{ $"{portletPrefix}formDate", formDate },
+				{ $"{portletPrefix}postcode", address.Postcode! },
+				{ $"{portletPrefix}uprn", uprn },
+				{ $"{portletPrefix}fullAddress", fullAddress },
+			});
 
 			var clientSideRequest = new ClientSideRequest
 			{
 				RequestId = 2,
-				Url = "https://www.midsuffolk.gov.uk/o/dynamic-data-mapping-form-context-provider/",
+				Url = "https://www.midsuffolk.gov.uk/check-your-collection-day?p_p_id=com_placecube_digitalplace_local_waste_portlet_CollectionDayFinderPortlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_com_placecube_digitalplace_local_waste_portlet_CollectionDayFinderPortlet_mvcRenderCommandName=%2Fcollection_day_finder%2Fget_days",
 				Method = "POST",
 				Headers = new()
 				{
 					{ "user-agent", Constants.UserAgent },
-					{ "accept", Constants.ApplicationJson },
-					{ "content-type", $"multipart/form-data; boundary={boundary}" },
+					{ "accept", "*/*" },
+					{ "accept-language", "en-GB,en;q=0.9" },
+					{ "origin", "https://www.midsuffolk.gov.uk" },
+					{ "referer", "https://www.midsuffolk.gov.uk/check-your-collection-day" },
 					{ "x-csrf-token", token },
-					{ "cookie", requestCookies },
+					{ "x-pjax", "true" },
+					{ "x-requested-with", Constants.XmlHttpRequest },
+					{ "content-type", $"multipart/form-data; boundary={boundary}" },
+					{ "cookie", cookies },
+					{ "sec-fetch-dest", "empty" },
+					{ "sec-fetch-mode", "cors" },
+					{ "sec-fetch-site", "same-origin" },
 				},
-				Body = requestBody.ReplaceLineEndings("\r\n"),
+				Body = requestBody,
 			};
 
 			var getBinDaysResponse = new GetBinDaysResponse
@@ -302,61 +264,27 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 
 			return getBinDaysResponse;
 		}
-		// Process bin days from response
+		// Parse resulting HTML Portlet output to extract bin days
 		else if (clientSideResponse.RequestId == 2)
 		{
-			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
-			var rows = jsonDoc.RootElement[0]
-				.GetProperty("rows");
-			JsonElement options = default;
+			var rawBinDays = BinDaysRegex().Matches(clientSideResponse.Content)!;
 
-			// Iterate through each response row to find the collection options field
-			foreach (var row in rows.EnumerateArray())
-			{
-				var columns = row.GetProperty("columns");
-
-				// Iterate through each response column and inspect fields
-				foreach (var column in columns.EnumerateArray())
-				{
-					var fields = column.GetProperty("fields");
-
-					// Iterate through each field and locate the collection options
-					foreach (var field in fields.EnumerateArray())
-					{
-						var fieldReference = field.GetProperty("fieldReference").GetString()!;
-
-						if (fieldReference == _collectionFieldReference)
-						{
-							options = field.GetProperty("options");
-						}
-					}
-				}
-			}
-
-			// Iterate through each collection option, and create a new bin day object
+			// Iterate through each bin day, and create a new bin day object
 			var binDays = new List<BinDay>();
-			var seenCollections = new HashSet<string>();
-			foreach (var option in options.EnumerateArray())
+			foreach (Match rawBinDay in rawBinDays)
 			{
-				var value = option.GetProperty("value").GetString()!;
-				var match = CollectionDetailsRegex().Match(value);
-				var service = match.Groups["service"].Value.Trim();
-				var collectionDate = match.Groups["date"].Value.Trim();
-				var collectionKey = $"{service}|{collectionDate}";
+				var service = rawBinDay.Groups["service"].Value.Trim();
+				var dateString = rawBinDay.Groups["date"].Value.Trim();
 
-				if (!seenCollections.Add(collectionKey))
-				{
-					continue;
-				}
+				var date = DateUtilities.ParseDateExact(dateString, "dddd dd MMM yyyy");
 
-				var matchedBinTypes = ProcessingUtilities.GetMatchingBins(_binTypes, service);
-				var date = DateUtilities.ParseDateExact(collectionDate, "ddd d MMM yyyy");
+				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, service);
 
 				var binDay = new BinDay
 				{
 					Date = date,
 					Address = address,
-					Bins = matchedBinTypes,
+					Bins = matchedBins,
 				};
 
 				binDays.Add(binDay);

@@ -2,6 +2,7 @@ namespace BinDays.Api.Collectors.Utilities;
 
 using BinDays.Api.Collectors.Models;
 using System;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
 
@@ -38,6 +39,30 @@ public static partial class ProcessingUtilities
 			$"{HttpUtility.UrlEncode(kvp.Key)}={HttpUtility.UrlEncode(kvp.Value)}"));
 
 		return formData;
+	}
+
+	/// <summary>
+	/// Builds a multipart/form-data request body from a dictionary of fields.
+	/// </summary>
+	/// <param name="boundary">The multipart boundary string (without leading --).</param>
+	/// <param name="fields">The form fields to include in order.</param>
+	/// <returns>A multipart/form-data body string with CRLF line endings.</returns>
+	public static string BuildMultipartFormData(string boundary, Dictionary<string, string> fields)
+	{
+		var sb = new StringBuilder();
+
+		foreach (var kvp in fields)
+		{
+			sb.Append($"--{boundary}\r\n");
+			sb.Append($"Content-Disposition: form-data; name=\"{kvp.Key}\"\r\n");
+			sb.Append("\r\n");
+			sb.Append(kvp.Value);
+			sb.Append("\r\n");
+		}
+
+		sb.Append($"--{boundary}--\r\n");
+
+		return sb.ToString();
 	}
 
 	/// <summary>
