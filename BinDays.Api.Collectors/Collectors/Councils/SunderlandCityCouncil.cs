@@ -73,7 +73,7 @@ internal sealed partial class SunderlandCityCouncil : GovUkCollectorBase, IColle
 	/// <summary>
 	/// Regex for the bin days from the data elements.
 	/// </summary>
-	[GeneratedRegex(@"<h2[^>]*>(?<service>[^<]+)</h2>.*?class=""datelabel"">\s*(?<date>[^<]+)\s*</span>", RegexOptions.Singleline)]
+	[GeneratedRegex(@"<h2[^>]*>(?<service>[^<]+)</h2>.*?style=""display:inline-block;width:20px;""[^>]*></span>\s*<span[^>]*>\s*(?<date>[^<]+)\s*</span>", RegexOptions.Singleline)]
 	private static partial Regex BinDaysRegex();
 
 	/// <inheritdoc/>
