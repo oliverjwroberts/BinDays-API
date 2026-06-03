@@ -19,7 +19,7 @@ public class EastCambridgeshireDistrictCouncilTests
 	}
 
 	[Theory]
-	[InlineData("CB6 1AD")]
+	[InlineData("CB6 2WZ")]
 	[InlineData("CB7 4DX")]
 	public async Task GetBinDaysTest(string postcode)
 	{
