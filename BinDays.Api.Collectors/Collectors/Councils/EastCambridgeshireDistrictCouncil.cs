@@ -22,9 +22,6 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 	/// <inheritdoc/>
 	public override string GovUkId => "east-cambridgeshire";
 
-	private const string InitialUrl = "https://eastcambs-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989/AF-Stage-94ee5097-94db-474d-bc7a-d1796e3ab83a/definition.json&process=1&process_uri=sandbox-processes://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989&process_id=AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989";
-	private const string FormUri = "sandbox-publish://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989/AF-Stage-94ee5097-94db-474d-bc7a-d1796e3ab83a/definition.json";
-
 	/// <summary>
 	/// The list of bin types for this collector.
 	/// </summary>
@@ -56,6 +53,16 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 			Type = BinType.Caddy,
 		},
 	];
+
+	/// <summary>
+	/// The URL for the AchieveForms waste collections calendar, used to obtain session cookies.
+	/// </summary>
+	private const string InitialUrl = "https://eastcambs-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989/AF-Stage-94ee5097-94db-474d-bc7a-d1796e3ab83a/definition.json&process=1&process_uri=sandbox-processes://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989&process_id=AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989";
+
+	/// <summary>
+	/// The AchieveForms form URI used in all API lookup request bodies.
+	/// </summary>
+	private const string FormUri = "sandbox-publish://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989/AF-Stage-94ee5097-94db-474d-bc7a-d1796e3ab83a/definition.json";
 
 	/// <summary>
 	/// Regex for extracting the Bartec authentication token from the auth lookup response.
@@ -267,6 +274,9 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
+	/// <summary>
+	/// Builds the Bartec authentication lookup request, stashing the session cookies in metadata for subsequent steps.
+	/// </summary>
 	private static ClientSideRequest BuildAuthLookupRequest(string cookies)
 	{
 		return new ClientSideRequest
