@@ -131,7 +131,7 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 		// Prepare address lookup request using auth token and stashed cookies
 		else if (clientSideResponse.RequestId == 2)
 		{
-			var authToken = AuthTokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			_ = AuthTokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
 			var cookies = clientSideResponse.Options.Metadata["cookie"];
 
 			var requestBody = $$"""
