@@ -17,7 +17,7 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 	public string Name => "East Cambridgeshire District Council";
 
 	/// <inheritdoc/>
-	public Uri WebsiteUrl => new("https://eastcambs-self.achieveservice.com/bincollections");
+	public Uri WebsiteUrl => new("https://eastcambs-self.achieveservice.com/service/Check_your_waste_collection_day");
 
 	/// <inheritdoc/>
 	public override string GovUkId => "east-cambridgeshire";
@@ -25,27 +25,50 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 	/// <summary>
 	/// The list of bin types for this collector.
 	/// </summary>
-	private readonly IReadOnlyCollection<Bin> _binTypes = [
+	private readonly IReadOnlyCollection<Bin> _binTypes =
+	[
 		new()
 		{
 			Name = "Household Waste",
 			Colour = BinColour.Black,
-			Keys = [ "Black Bag" ],
-			Type = BinType.Bag,
+			Keys = [ "RUBBISH BIN" ],
 		},
 		new()
 		{
 			Name = "Recycling",
 			Colour = BinColour.Blue,
-			Keys = [ "Blue Bin" ],
+			Keys = [ "RECYCLING BIN" ],
 		},
 		new()
 		{
-			Name = "Garden & Food Waste",
+			Name = "Garden Waste",
 			Colour = BinColour.Green,
-			Keys = [ "Green or Brown Bin" ],
+			Keys = [ "GARDEN WASTE BIN" ],
+		},
+		new()
+		{
+			Name = "Food Waste",
+			Colour = BinColour.Grey,
+			Keys = [ "OUTDOOR FOOD CADDY" ],
+			Type = BinType.Caddy,
 		},
 	];
+
+	/// <summary>
+	/// The URL for the AchieveForms waste collections calendar, used to obtain session cookies.
+	/// </summary>
+	private const string InitialUrl = "https://eastcambs-self.achieveservice.com/AchieveForms/?mode=fill&consentMessage=yes&form_uri=sandbox-publish://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989/AF-Stage-94ee5097-94db-474d-bc7a-d1796e3ab83a/definition.json&process=1&process_uri=sandbox-processes://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989&process_id=AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989";
+
+	/// <summary>
+	/// The AchieveForms form URI used in all API lookup request bodies.
+	/// </summary>
+	private const string FormUri = "sandbox-publish://AF-Process-2c7575a6-0139-4555-9d8a-ab504a44d989/AF-Stage-94ee5097-94db-474d-bc7a-d1796e3ab83a/definition.json";
+
+	/// <summary>
+	/// Regex for extracting the Bartec authentication token from the auth lookup response.
+	/// </summary>
+	[GeneratedRegex(@"<result column=""AuthenticateResponse""[^>]*>(?<token>[^<]+)<\/result>")]
+	private static partial Regex AuthTokenRegex();
 
 	/// <summary>
 	/// Regex for parsing addresses from the XML response.
@@ -54,16 +77,10 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 	private static partial Regex AddressesRegex();
 
 	/// <summary>
-	/// Regex for parsing bin collection data from the HTML response.
+	/// Regex for parsing bin collection data from the XML response.
 	/// </summary>
-	[GeneratedRegex(@"<div class=""row collectionsrow"">.*?<img.*?alt=""(?<binType>[^""]+)"">.*?<div class=""col-xs-6 col-sm-6"">(?<date>.*?)<\/div>", RegexOptions.Singleline)]
+	[GeneratedRegex(@"<result column=""name""[^>]*>(?<binType>[^<]+)<\/result><result column=""ScheduledStart""[^>]*>(?<date>[^<]+)<\/result>")]
 	private static partial Regex BinDaysRegex();
-
-	/// <summary>
-	/// Regex for replacing multiple whitespace characters with a single space.
-	/// </summary>
-	[GeneratedRegex(@"\s+")]
-	private static partial Regex WhitespaceRegex();
 
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
@@ -71,78 +88,77 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 		// Prepare client-side request for getting session cookies
 		if (clientSideResponse == null)
 		{
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 1,
-				Url = "https://eastcambs-self.achieveservice.com/bincollections",
-				Method = "GET",
-			};
-
 			return new GetAddressesResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = InitialUrl,
+					Method = "GET",
+				},
 			};
 		}
-		// Prepare client-side request for getting addresses
+		// Prepare auth lookup request, stashing cookies in metadata
 		else if (clientSideResponse.RequestId == 1)
 		{
-			var requestCookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
-			var requestUrl = "https://eastcambs-self.achieveservice.com/apibroker/runLookup?id=5a6b2c8861aaf";
-
-			var requestBody = JsonSerializer.Serialize(new
+			var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
+			return new GetAddressesResponse
 			{
-				formValues = new
-				{
-					Section_1 = new
-					{
-						postcode_search = new
-						{
-							value = postcode,
-						},
-					},
-				},
-				isPublished = true,
-				formName = "Choose collection address",
-				formUri = "sandbox-shared://AF-Process-e38aa672-38b4-4355-a601-0132ab5ef8b7/AF-Stage-361ee725-08c0-49eb-aa18-a44a60cbee92/definition.json"
-			});
-
-			var clientSideRequest = new ClientSideRequest
-			{
-				RequestId = 2,
-				Url = requestUrl,
-				Method = "POST",
-				Headers = new Dictionary<string, string>
-				{
-					{ "Content-Type", Constants.ApplicationJson },
-					{ "cookie", requestCookies }
-				},
-				Body = requestBody,
+				NextClientSideRequest = BuildAuthLookupRequest(cookies),
 			};
+		}
+		// Prepare address lookup request using stashed cookies
+		else if (clientSideResponse.RequestId == 2)
+		{
+			var cookies = clientSideResponse.Options.Metadata["cookie"];
+
+			var requestBody = $$"""
+			{
+				"formValues": {
+					"Section 1": {
+						"PostcodeSearch": { "value": "{{postcode}}" }
+					}
+				},
+				"isPublished": true,
+				"formName": "Waste collections calendar",
+				"formUri": "{{FormUri}}"
+			}
+			""";
 
 			return new GetAddressesResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 3,
+					Url = "https://eastcambs-self.achieveservice.com/apibroker/runLookup?id=54915cbced788",
+					Method = "POST",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "content-type", Constants.ApplicationJson },
+						{ "cookie", cookies },
+					},
+					Body = requestBody,
+				},
 			};
 		}
-		// Process addresses from response
-		else if (clientSideResponse.RequestId == 2)
+		// Parse addresses from XML embedded in JSON response
+		else if (clientSideResponse.RequestId == 3)
 		{
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var xmlData = jsonDoc.RootElement.GetProperty("data").GetString()!;
 
-			// Get addresses from response
-			var rawAddresses = AddressesRegex().Matches(xmlData);
+			var rawAddresses = AddressesRegex().Matches(xmlData)!;
 
 			var addresses = new List<Address>();
 			foreach (Match rawAddress in rawAddresses)
 			{
-				var address = new Address
+				addresses.Add(new Address
 				{
 					Property = rawAddress.Groups["address"].Value.Trim(),
 					Uid = rawAddress.Groups["uprn"].Value,
 					Postcode = postcode,
-				};
-				addresses.Add(address);
+				});
 			}
 
 			return new GetAddressesResponse
@@ -151,56 +167,102 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 			};
 		}
 
-		// Throw exception for invalid request
 		throw new InvalidOperationException("Invalid client-side request.");
 	}
 
 	/// <inheritdoc/>
 	public GetBinDaysResponse GetBinDays(Address address, ClientSideResponse? clientSideResponse)
 	{
-		// Prepare client-side request for getting bin days
+		// Prepare client-side request for getting session cookies
 		if (clientSideResponse == null)
 		{
-			var requestUrl = $"https://eastcambs-self.achieveservice.com/appshost/firmstep/self/apps/custompage/bincollections?uprn={address.Uid}";
-
-			var clientSideRequest = new ClientSideRequest
+			return new GetBinDaysResponse
 			{
-				RequestId = 1,
-				Url = requestUrl,
-				Method = "GET",
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 1,
+					Url = InitialUrl,
+					Method = "GET",
+				},
 			};
+		}
+		// Prepare auth lookup request, stashing cookies in metadata
+		else if (clientSideResponse.RequestId == 1)
+		{
+			var cookies = ProcessingUtilities.ParseSetCookieHeaderForRequestCookie(clientSideResponse.Headers["set-cookie"]);
+			return new GetBinDaysResponse
+			{
+				NextClientSideRequest = BuildAuthLookupRequest(cookies),
+			};
+		}
+		// Prepare bin day lookup request using auth token and stashed cookies
+		else if (clientSideResponse.RequestId == 2)
+		{
+			using var authDoc = JsonDocument.Parse(clientSideResponse.Content);
+			var authXml = authDoc.RootElement.GetProperty("data").GetString()!;
+			var authToken = AuthTokenRegex().Match(authXml).Groups["token"].Value;
+			var cookies = clientSideResponse.Options.Metadata["cookie"];
+
+			var today = DateOnly.FromDateTime(DateTime.Today);
+			var minDate = today.ToString("yyyy-MM-dd");
+			var maxDate = today.AddDays(45).ToString("yyyy-MM-dd");
+
+			var requestBody = $$"""
+			{
+				"formValues": {
+					"Section 1": {
+						"AuthenticateResponse": { "value": "{{authToken}}" },
+						"selected_uprn": { "value": "{{address.Uid}}" },
+						"MinimumDateForNextDates": { "value": "{{minDate}}" },
+						"MaximumDateFormattedNext": { "value": "{{maxDate}}" }
+					}
+				},
+				"isPublished": true,
+				"formName": "Waste collections calendar",
+				"formUri": "{{FormUri}}"
+			}
+			""";
 
 			return new GetBinDaysResponse
 			{
-				NextClientSideRequest = clientSideRequest
+				NextClientSideRequest = new ClientSideRequest
+				{
+					RequestId = 3,
+					Url = "https://eastcambs-self.achieveservice.com/apibroker/runLookup?id=6784e74793b68",
+					Method = "POST",
+					Headers = new()
+					{
+						{ "user-agent", Constants.UserAgent },
+						{ "content-type", Constants.ApplicationJson },
+						{ "cookie", cookies },
+					},
+					Body = requestBody,
+				},
 			};
 		}
-		// Process bin days from response
-		else if (clientSideResponse.RequestId == 1)
+		// Parse bin days from XML embedded in JSON response
+		else if (clientSideResponse.RequestId == 3)
 		{
-			// Get bin days from response
-			var rawBinDays = BinDaysRegex().Matches(clientSideResponse.Content);
+			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
+			var xmlData = jsonDoc.RootElement.GetProperty("data").GetString()!;
+
+			var rawBinDays = BinDaysRegex().Matches(xmlData)!;
 
 			var binDays = new List<BinDay>();
 			foreach (Match rawBinDay in rawBinDays)
 			{
 				var binTypeStr = rawBinDay.Groups["binType"].Value.Trim();
-				var dateStr = WhitespaceRegex().Replace(rawBinDay.Groups["date"].Value.Trim(), " ");
+				var dateStr = rawBinDay.Groups["date"].Value.Trim();
 
-				// Parse date string (e.g. "Fri - 26 Sep 2025")
-				var date = DateUtilities.ParseDateExact(dateStr, "ddd - dd MMM yyyy");
+				var date = DateUtilities.ParseDateExact(dateStr, "dd/MM/yyyy");
+				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, binTypeStr);
 
-				// Get matching bin types from the bin ID using the keys
-				var matchedBinTypes = ProcessingUtilities.GetMatchingBins(_binTypes, binTypeStr);
-
-				var binDay = new BinDay
+				binDays.Add(new BinDay
 				{
 					Date = date,
 					Address = address,
-					Bins = matchedBinTypes,
-				};
-
-				binDays.Add(binDay);
+					Bins = matchedBins,
+				});
 			}
 
 			return new GetBinDaysResponse
@@ -209,7 +271,40 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 			};
 		}
 
-		// Throw exception for invalid request
 		throw new InvalidOperationException("Invalid client-side request.");
+	}
+
+	/// <summary>
+	/// Builds the Bartec authentication lookup request, stashing the session cookies in metadata for subsequent steps.
+	/// </summary>
+	private static ClientSideRequest BuildAuthLookupRequest(string cookies)
+	{
+		return new ClientSideRequest
+		{
+			RequestId = 2,
+			Url = "https://eastcambs-self.achieveservice.com/apibroker/runLookup?id=69d8f92eea3cf",
+			Method = "POST",
+			Headers = new()
+			{
+				{ "user-agent", Constants.UserAgent },
+				{ "content-type", Constants.ApplicationJson },
+				{ "cookie", cookies },
+			},
+			Body = $$"""
+			{
+				"formValues": { "Section 1": {} },
+				"isPublished": true,
+				"formName": "Waste collections calendar",
+				"formUri": "{{FormUri}}"
+			}
+			""",
+			Options = new ClientSideOptions
+			{
+				Metadata =
+				{
+					{ "cookie", cookies },
+				},
+			},
+		};
 	}
 }
