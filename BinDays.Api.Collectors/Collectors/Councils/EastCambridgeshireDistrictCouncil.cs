@@ -75,34 +75,6 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 	[GeneratedRegex(@"<result column=""name""[^>]*>(?<binType>[^<]+)<\/result><result column=""ScheduledStart""[^>]*>(?<date>[^<]+)<\/result>")]
 	private static partial Regex BinDaysRegex();
 
-	private static ClientSideRequest BuildAuthLookupRequest(string cookies) => new()
-	{
-		RequestId = 2,
-		Url = "https://eastcambs-self.achieveservice.com/apibroker/runLookup?id=69d8f92eea3cf",
-		Method = "POST",
-		Headers = new()
-		{
-			{ "user-agent", Constants.UserAgent },
-			{ "content-type", Constants.ApplicationJson },
-			{ "cookie", cookies },
-		},
-		Body = $$"""
-		{
-			"formValues": { "Section 1": {} },
-			"isPublished": true,
-			"formName": "Waste collections calendar",
-			"formUri": "{{FormUri}}"
-		}
-		""",
-		Options = new ClientSideOptions
-		{
-			Metadata =
-			{
-				{ "cookie", cookies },
-			},
-		},
-	};
-
 	/// <inheritdoc/>
 	public GetAddressesResponse GetAddresses(string postcode, ClientSideResponse? clientSideResponse)
 	{
@@ -128,10 +100,9 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 				NextClientSideRequest = BuildAuthLookupRequest(cookies),
 			};
 		}
-		// Prepare address lookup request using auth token and stashed cookies
+		// Prepare address lookup request using stashed cookies
 		else if (clientSideResponse.RequestId == 2)
 		{
-			_ = AuthTokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
 			var cookies = clientSideResponse.Options.Metadata["cookie"];
 
 			var requestBody = $$"""
@@ -170,7 +141,7 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var xmlData = jsonDoc.RootElement.GetProperty("data").GetString()!;
 
-			var rawAddresses = AddressesRegex().Matches(xmlData);
+			var rawAddresses = AddressesRegex().Matches(xmlData)!;
 
 			var addresses = new List<Address>();
 			foreach (Match rawAddress in rawAddresses)
@@ -268,7 +239,7 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 			using var jsonDoc = JsonDocument.Parse(clientSideResponse.Content);
 			var xmlData = jsonDoc.RootElement.GetProperty("data").GetString()!;
 
-			var rawBinDays = BinDaysRegex().Matches(xmlData);
+			var rawBinDays = BinDaysRegex().Matches(xmlData)!;
 
 			var binDays = new List<BinDay>();
 			foreach (Match rawBinDay in rawBinDays)
@@ -294,5 +265,36 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 		}
 
 		throw new InvalidOperationException("Invalid client-side request.");
+	}
+
+	private static ClientSideRequest BuildAuthLookupRequest(string cookies)
+	{
+		return new ClientSideRequest
+		{
+			RequestId = 2,
+			Url = "https://eastcambs-self.achieveservice.com/apibroker/runLookup?id=69d8f92eea3cf",
+			Method = "POST",
+			Headers = new()
+			{
+				{ "user-agent", Constants.UserAgent },
+				{ "content-type", Constants.ApplicationJson },
+				{ "cookie", cookies },
+			},
+			Body = $$"""
+			{
+				"formValues": { "Section 1": {} },
+				"isPublished": true,
+				"formName": "Waste collections calendar",
+				"formUri": "{{FormUri}}"
+			}
+			""",
+			Options = new ClientSideOptions
+			{
+				Metadata =
+				{
+					{ "cookie", cookies },
+				},
+			},
+		};
 	}
 }
