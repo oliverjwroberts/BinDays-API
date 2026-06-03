@@ -220,7 +220,9 @@ internal sealed partial class EastCambridgeshireDistrictCouncil : GovUkCollector
 		// Prepare bin day lookup request using auth token and stashed cookies
 		else if (clientSideResponse.RequestId == 2)
 		{
-			var authToken = AuthTokenRegex().Match(clientSideResponse.Content).Groups["token"].Value;
+			using var authDoc = JsonDocument.Parse(clientSideResponse.Content);
+			var authXml = authDoc.RootElement.GetProperty("data").GetString()!;
+			var authToken = AuthTokenRegex().Match(authXml).Groups["token"].Value;
 			var cookies = clientSideResponse.Options.Metadata["cookie"];
 
 			var today = DateOnly.FromDateTime(DateTime.Today);
