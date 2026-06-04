@@ -36,13 +36,13 @@ internal sealed partial class MidSuffolk : GovUkCollectorBase, ICollector
 		new()
 		{
 			Name = "Recycling",
-			Colour = BinColour.Green,
+			Colour = BinColour.Blue,
 			Keys = [ "Recycling Collection" ],
 		},
 		new()
 		{
 			Name = "Paper and Card Recycling",
-			Colour = BinColour.Blue,
+			Colour = BinColour.Green,
 			Keys = [ "Paper And Card Collection" ],
 		},
 		new()
