@@ -6,21 +6,21 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Collector implementation for Mid Suffolk District Council.
+/// Collector implementation for Babergh District Council.
 /// </summary>
-internal sealed class MidSuffolk : PlacecubeCollectorBase, ICollector
+internal sealed class BaberghDistrictCouncil : PlacecubeCollectorBase, ICollector
 {
 	/// <inheritdoc/>
-	public string Name => "Mid Suffolk";
+	public string Name => "Babergh District Council";
 
 	/// <inheritdoc/>
-	public Uri WebsiteUrl => new("https://www.midsuffolk.gov.uk/");
+	public Uri WebsiteUrl => new("https://babergh.gov.uk/");
 
 	/// <inheritdoc/>
-	public override string GovUkId => "mid-suffolk";
+	public override string GovUkId => "babergh";
 
 	/// <inheritdoc/>
-	protected override string BaseUrl => "https://www.midsuffolk.gov.uk";
+	protected override string BaseUrl => "https://babergh.gov.uk";
 
 	/// <inheritdoc/>
 	protected override IReadOnlyCollection<Bin> BinTypes =>
