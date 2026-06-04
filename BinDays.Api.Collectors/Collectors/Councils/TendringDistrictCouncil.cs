@@ -224,15 +224,16 @@ internal sealed partial class TendringDistrictCouncil : GovUkCollectorBase, ICol
 
 			var row = rowsData.GetProperty("0");
 			var binDays = new List<BinDay>();
-
-			// Iterate through each collection type and its next/previous dates
-			foreach (var (nextField, prevField, binKey) in new[]
+			var collectionTypes = new[]
 			{
 				("nextResidualCollection", "previousResidualCollection", "Residual"),
 				("nextGreenCollection", "previousGreenCollection", "Green"),
 				("nextRedCollection", "previousRedCollection", "Red"),
 				("nextFoodCollection", "previousFoodCollection", "Food"),
-			})
+			};
+
+			// Iterate through each collection type and its next/previous dates
+			foreach (var (nextField, prevField, binKey) in collectionTypes)
 			{
 				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, binKey);
 				var dates = new[] { row.GetProperty(nextField).GetString()!, row.GetProperty(prevField).GetString()! };
