@@ -235,8 +235,9 @@ internal sealed partial class TendringDistrictCouncil : GovUkCollectorBase, ICol
 			})
 			{
 				var matchedBins = ProcessingUtilities.GetMatchingBins(_binTypes, binKey);
+				var dates = new[] { row.GetProperty(nextField).GetString()!, row.GetProperty(prevField).GetString()! };
 
-				foreach (var dateString in new[] { row.GetProperty(nextField).GetString()!, row.GetProperty(prevField).GetString()! })
+				foreach (var dateString in dates)
 				{
 					if (string.IsNullOrWhiteSpace(dateString))
 					{
