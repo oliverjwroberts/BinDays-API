@@ -41,7 +41,7 @@ internal sealed partial class WestSuffolkDistrictCouncil : GovUkCollectorBase, I
 		},
 		new()
 		{
-			Name = "Paper, Card & Glass Recycling",
+			Name = "Paper & Card Recycling",
 			Colour = BinColour.Green,
 			Keys = [ "Green Bins" ],
 		},
